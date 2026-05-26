@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PINTAR - Terminal Mesin Absensi</title>
+    <script src="https://unpkg.com/@tailwindcss/browser@4"></script>
+    <link href="https://unpkg.com/boxicons@2.1.4/css/boxicons.min.css" rel="stylesheet">
+</head>
+<body class="bg-slate-950 text-slate-100 h-screen flex flex-col justify-between p-4 overflow-hidden">
+
+    <div class="flex justify-between items-center bg-slate-900 border border-slate-800 px-5 py-3 rounded-xl shadow-lg">
+        <div class="flex items-center gap-3">
+            <div class="w-3 h-3 bg-emerald-500 rounded-full animate-pulse"></div>
+            <div>
+                <h2 class="text-sm font-bold tracking-wide uppercase">TERMINAL MESIN PINTAR AKTIF</h2>
+                <p class="text-xs text-slate-400">Sesi: <span class="text-blue-400 font-semibold">{{ sesi_ibadah }}</span> | Target: <span class="text-amber-400 font-semibold">{{ target_agama }}</span></p>
+            </div>
+        </div>
+        <a href="/" class="text-xs bg-slate-800 hover:bg-slate-700 text-slate-300 px-3 py-1.5 rounded-lg transition">
+            <i class='bx bx-cog'></i> Reset Sesi
+        </a>
+    </div>
+
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-6 my-auto max-w-5xl w-full mx-auto items-center">
+        
+        <div class="relative bg-slate-900 rounded-2xl p-3 border border-slate-800 overflow-hidden shadow-xl flex flex-col items-center justify-center max-h-[55vh]">
+            <div class="absolute top-4 left-4 z-10 bg-slate-950/80 backdrop-blur-md px-3 py-1 rounded-full text-[10px] font-semibold tracking-wider text-emerald-400 flex items-center gap-1">
+                <i class='bx bx-video'></i> AI CAMERA STREAM
+            </div>
+            <video id="webcam" autoplay playsinline class="w-full h-full max-h-[45vh] object-cover rounded-xl bg-slate-950 scale-x-[-1]"></video>
+            <canvas id="canvas" class="hidden"></canvas>
+        </div>
+
+        <div class="flex flex-col gap-4">
+            <div id="statusBox" class="bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-xl text-center transition-all duration-300 min-h-[180px] flex flex-col justify-center items-center">
+                <div id="statusIcon" class="text-5xl text-blue-500 mb-2 animate-bounce">
+                    <i class='bx bx-rfid'></i>
+                </div>
+                <h3 id="statusTitle" class="text-lg font-bold tracking-wide">Silakan Tempelkan Kartu</h3>
+                <p id="statusDesc" class="text-xs text-slate-400 mt-1 max-w-xs">Dekatkan kartu RFID pada scanner untuk verifikasi wajah.</p>
+            </div>
+
+            <form id="absensiForm" class="opacity-80">
+                <label class="block text-[10px] font-semibold text-slate-500 mb-1 uppercase tracking-widest text-center">RFID Reader Focus Input</label>
+                <input type="text" id="id_card" name="id_card" autocomplete="off" class="w-full bg-slate-900 border border-slate-800 text-center py-2 text-md rounded-xl font-mono focus:outline-none focus:border-blue-500 text-emerald-400 tracking-widest" placeholder="Ready to scan..." autofocus>
+            </form>
+        </div>
+    </div>
+
+    <div class="text-center text-[10px] text-slate-600 tracking-wider font-mono py-1">
+        &copy; 2026 REKAYASA PERANGKAT LUNAK - SMKN 1 SURABAYA
+    </div>
+
+    <script>
+        const video = document.getElementById('webcam');
+        const canvas = document.getElementById('canvas');
+        const rfidInput = document.getElementById('id_card');
+        const form = document.getElementById('absensiForm');
+        const statusBox = document.getElementById('statusBox');
+        const statusIcon = document.getElementById('statusIcon');
+        const statusTitle = document.getElementById('statusTitle');
+        const statusDesc = document.getElementById('statusDesc');
+
+        // Memaksa browser meminta izin webcam dengan aspek rasio ideal
+        navigator.mediaDevices.getUserMedia({ video: { width: 640, height: 480 } })
+            .then(stream => { 
+                video.srcObject = stream; 
+                video.play();
+            })
+            .catch(err => { 
+                console.error("Kamera diblokir atau error: ", err);
+                statusTitle.innerText = "Kamera Tidak Terdeteksi";
+                statusDesc.innerText = "Pastikan izin kamera di browser disetel ke 'Allow' / Izinkan.";
+                statusBox.className = "bg-slate-900 border border-red-500 rounded-2xl p-6 shadow-xl text-center flex flex-col justify-center items-center";
+            });
+
+        // Menjaga input rfid tetap fokus otomatis
+        document.addEventListener('click', () => { rfidInput.focus(); });
+        setInterval(() => { if(document.activeElement !== rfidInput) rfidInput.focus(); }, 1000);
+
+        form.addEventListener('submit', function(e) {
+            e.preventDefault();
+            const uidValue = rfidInput.value.trim();
+            if (!uidValue) return;
+
+            statusBox.className = "bg-slate-900 border border-amber-500/50 rounded-2xl p-6 shadow-xl text-center flex flex-col justify-center items-center";
+            statusIcon.className = "text-5xl text-amber-400 mb-2 animate-spin";
+            statusIcon.innerHTML = "<i class='bx bx-loader-alt'></i>";
+            statusTitle.innerText = "Memproses AI...";
+
+            const context = canvas.getContext('2d');
+            canvas.width = 320;
+            canvas.height = 240;
+            
+            context.translate(canvas.width, 0);
+            context.scale(-1, 1);
+            context.drawImage(video, 0, 0, canvas.width, canvas.height);
+            
+            const base64Data = canvas.toDataURL('image/jpeg', 0.6);
+
+            const formData = new FormData();
+            formData.append('id_card', uidValue);
+            formData.append('snapshot', base64Data);
+
+            fetch('/absen', {
+                method: 'POST',
+                headers: { 'X-Requested-With': 'XMLHttpRequest' },
+                body: formData
+            })
+            .then(response => response.json())
+            .then(data => {
+                rfidInput.value = '';
+
+                if (data.status === 'success') {
+                    statusBox.className = "bg-slate-900 border border-emerald-500 rounded-2xl p-6 shadow-xl text-center flex flex-col justify-center items-center";
+                    statusIcon.className = "text-5xl text-emerald-500 mb-2";
+                    statusIcon.innerHTML = "<i class='bx bx-check-circle'></i>";
+                } else {
+                    statusBox.className = "bg-slate-900 border border-red-500 rounded-2xl p-6 shadow-xl text-center flex flex-col justify-center items-center";
+                    statusIcon.className = "text-5xl text-red-500 mb-2";
+                    statusIcon.innerHTML = "<i class='bx bx-x-circle'></i>";
+                }
+                statusTitle.innerText = data.status === 'success' ? "COCOK" : "GAGAL";
+                statusDesc.innerText = data.message;
+
+                setTimeout(() => {
+                    statusBox.className = "bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-xl text-center flex flex-col justify-center items-center";
+                    statusIcon.className = "text-5xl text-blue-500 mb-2 animate-bounce";
+                    statusIcon.innerHTML = "<i class='bx bx-rfid'></i>";
+                    statusTitle.innerText = "Silakan Tempelkan Kartu";
+                    statusDesc.innerText = "Dekatkan kartu RFID pada scanner untuk verifikasi wajah.";
+                }, 3000);
+            })
+            .catch(error => {
+                console.error("Error:", error);
+                rfidInput.value = '';
+            });
+        });
+    </script>
+</body>
+</html>
