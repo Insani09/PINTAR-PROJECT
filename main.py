@@ -124,6 +124,35 @@ def login():
             flash("Username atau Password salah!", "danger")
     return render_template('login.html')
 
+@app.route('/hapus_log/<int:id>', methods=['POST'])
+def hapus_log(id):
+    if 'admin_id' not in session:
+        return jsonify({"status": "error", "message": "Unauthorized"}), 401
+
+    username = request.form.get('username')
+    password = request.form.get('password')
+    password_hash = hashlib.sha256(password.encode()).hexdigest()
+
+    conn = get_db_connection()
+    cursor = conn.cursor(dictionary=True)
+
+    # Verifikasi kredensial admin
+    cursor.execute("SELECT * FROM admin WHERE username = %s AND password = %s", (username, password_hash))
+    admin = cursor.fetchone()
+
+    if admin:
+        cursor.execute("DELETE FROM absensi WHERE id = %s", (id,))
+        conn.commit()
+        cursor.close()
+        conn.close()
+        flash("Log berhasil dihapus!", "success")
+        return redirect(url_for('dashboard'))
+    else:
+        cursor.close()
+        conn.close()
+        flash("Username atau Password Admin salah!", "danger")
+        return redirect(url_for('dashboard'))
+    
 @app.route('/logout')
 def logout():
     session.clear()
@@ -137,7 +166,7 @@ def dashboard():
     conn = get_db_connection()
     cursor = conn.cursor(dictionary=True)
     
-    # Handle Tambah Siswa (POST)
+    # --- 1. HANDLE TAMBAH SISWA (POST) ---
     if request.method == 'POST' and 'tambah_siswa' in request.form:
         id_card = request.form['id_card']
         nama = request.form['nama']
@@ -164,21 +193,34 @@ def dashboard():
             
         return redirect(url_for('dashboard'))
 
-    # Ambil Statistik Ringkasan
+    # --- 2. AMBIL STATISTIK HARI INI (UPDATE LOGIKA) ---
+    # Total Siswa Terdaftar
     cursor.execute("SELECT COUNT(*) as total FROM siswa")
     total_siswa = cursor.fetchone()['total']
     
-    cursor.execute("SELECT COUNT(*) as hadir FROM absensi WHERE DATE(waktu_hadir) = CURDATE() AND keterangan LIKE '%Verified%'")
+    # Hadir (Verified) - menggunakan LIKE '%Verified%'
+    cursor.execute("""
+        SELECT COUNT(*) as hadir 
+        FROM absensi 
+        WHERE DATE(waktu_hadir) = CURDATE() 
+        AND keterangan LIKE '%Verified%'
+    """)
     total_hadir = cursor.fetchone()['hadir']
 
-    cursor.execute("SELECT COUNT(*) as gagal FROM absensi WHERE DATE(waktu_hadir) = CURDATE() AND (keterangan LIKE '%Gagal%' OR keterangan LIKE '%Tidak Identik%')")
+    # Gagal - menggunakan logika kebalikan dari Verified
+    cursor.execute("""
+        SELECT COUNT(*) as gagal 
+        FROM absensi 
+        WHERE DATE(waktu_hadir) = CURDATE() 
+        AND keterangan NOT LIKE '%Verified%'
+    """)
     total_gagal = cursor.fetchone()['gagal']
 
-    # Ambil Data Master Siswa
+    # --- 3. AMBIL DATA MASTER SISWA ---
     cursor.execute("SELECT * FROM siswa ORDER BY nama ASC")
     data_siswa = cursor.fetchall()
     
-    # Ambil Live Log Kehadiran
+    # --- 4. AMBIL LIVE LOG KEHADIRAN (10 TERAKHIR) ---
     cursor.execute("""
         SELECT absensi.*, siswa.nama, siswa.kelas 
         FROM absensi 
@@ -190,10 +232,15 @@ def dashboard():
     cursor.close()
     conn.close()
     
+    # Kirim semua data ke template
     return render_template('dashboard.html', 
                            siswa=data_siswa, 
                            log_absensi=log_absensi,
-                           stats={'total': total_siswa, 'hadir': total_hadir, 'gagal': total_gagal})
+                           stats={
+                               'total': total_siswa, 
+                               'hadir': total_hadir, 
+                               'gagal': total_gagal
+                           })
 
 @app.route('/hapus_siswa/<int:id>')
 def hapus_siswa(id):
@@ -316,6 +363,7 @@ def edit_siswa(id):
 # ==========================================
 @app.route('/export_pdf')
 def export_pdf():
+    # Ambil parameter jika ada, default diatur ke Adrian
     nama_pembina = request.args.get('nama_pembina', 'M. Adrian Kurniawan, S.Pd.')
     nip_pembina = request.args.get('nip_pembina', '19850311 201001 2 003')
     filter_ibadah = request.args.get('filter_ibadah', 'Semua')
@@ -343,100 +391,12 @@ def export_pdf():
     cursor.close()
     conn.close()
     
-    html_template = """
-    <!DOCTYPE html>
-    <html lang="id">
-    <head>
-        <meta charset="UTF-8">
-        <style>
-            @page {
-                size: a4;
-                margin: 20mm 15mm 20mm 15mm;
-            }
-            body { 
-                font-family: 'Times New Roman', Times, serif; 
-                color: #000000; 
-                line-height: 1.4; 
-            }
-            .kop { text-align: center; border-bottom: 3px double #000000; padding-bottom: 6px; margin-bottom: 20px; }
-            .kop h1 { font-size: 14pt; text-transform: uppercase; margin: 0; font-weight: bold; }
-            .kop h2 { font-size: 16pt; text-transform: uppercase; margin: 5px 0 0 0; font-weight: bold; }
-            .kop h3 { font-size: 11pt; margin: 5px 0 0 0; font-weight: normal; font-style: italic; }
-            .kop p { font-size: 9pt; margin: 5px 0 0 0; font-style: italic; }
-            
-            .title-dokumen { text-align: center; margin-bottom: 25px; }
-            .title-dokumen h4 { font-size: 12pt; text-transform: uppercase; margin: 0; font-weight: bold; }
-            .title-dokumen p { font-size: 10pt; margin: 5px 0 0 0; }
-            
-            table { width: 100%; border-collapse: collapse; margin-top: 15px; }
-            th { border: 1px solid #000000; background-color: #f3f4f6; padding: 8px; font-weight: bold; text-transform: uppercase; font-size: 10pt; text-align: center; }
-            td { border: 1px solid #000000; padding: 6px; font-size: 10pt; vertical-align: middle; }
-            .text-center { text-align: center; }
-            
-            .ttd-container { width: 100%; margin-top: 30px; }
-            .ttd-table { width: 100%; border: none; }
-            .ttd-table td { border: none; width: 50%; font-size: 11pt; padding: 0; }
-            .nama-pembina { font-weight: bold; text-decoration: underline; }
-        </style>
-    </head>
-    <body>
-        <div class="kop">
-            <h1>Pemerintah Provinsi Jawa Timur</h1>
-            <h2>Dinas Pendidikan - SMKN 1 Surabaya</h2>
-            <h3>Kompetensi Keahlian: Rekayasa Perangkat Lunak (RPL)</h3>
-            <p>JL. SMEA NO. 4 WONOKROMO, Wonokromo, Kec. Wonokromo, Kota Surabaya, Jawa Timur</p>
-        </div>
-        
-        <div class="title-dokumen">
-            <h4>Laporan Rekapitulasi Kehadiran Pembiasaan Ibadah Siswa</h4>
-            <p>Sistem PINTAR (RFID & Webcam AI Auto-Verification) &mdash; Filter: {{ filter_ibadah }}</p>
-        </div>
-
-        <table>
-            <thead>
-                <tr>
-                    <th style="width: 5%;">No</th>
-                    <th style="width: 20%;">NISN</th>
-                    <th style="width: 35%;">Nama Siswa</th>
-                    <th style="width: 15%;">Kelas</th>
-                    <th style="width: 25%;">Sesi Ibadah</th>
-                </tr>
-            </thead>
-            <tbody>
-                {% for log in logs %}
-                <tr>
-                    <td class="text-center">{{ loop.index }}</td>
-                    <td class="text-center">{{ log.nisn }}</td>
-                    <td><b>{{ log.nama }}</b></td>
-                    <td class="text-center">{{ log.kelas }}</td>
-                    <td class="text-center">{{ log.jenis_ibadah }}</td>
-                </tr>
-                {% endfor %}
-            </tbody>
-        </table>
-
-        <div class="ttd-container">
-            <table class="ttd-table">
-                <tr>
-                    <td></td>
-                    <td style="text-align: left; padding-left: 120px;">
-                        Surabaya, {{ tanggal_hari_ini }}<br>
-                        Mengetahui,<br>
-                        Guru Pembina Ibadah
-                        <br><br><br><br>
-                        <span class="nama-pembina">{{ nama_pembina }}</span><br>
-                        NIP. {{ nip_pembina }}
-                    </td>
-                </tr>
-            </table>
-        </div>
-    </body>
-    </html>
-    """
-    
+    # Format tanggal untuk TTD
     tgl = datetime.datetime.now().strftime("%d %B %Y")
-    rendered_html = render_template_string(
-        html_template, 
+    
+    # Gunakan render_template() langsung ke file cetak_pdf.html!
+    rendered_html = render_template(
+        'cetak_pdf.html', 
         logs=logs, 
         nama_pembina=nama_pembina, 
         nip_pembina=nip_pembina, 
@@ -445,6 +405,7 @@ def export_pdf():
     )
     
     pdf_buffer = BytesIO()
+    # Panggil fungsi xhtml2pdf
     pisa_status = pisa.CreatePDF(rendered_html, dest=pdf_buffer)
     
     if pisa_status.err:

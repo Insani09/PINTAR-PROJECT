@@ -1,0 +1,197 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PINTAR - Log Aktivitas Terbaru</title>
+    <script src="https://unpkg.com/@tailwindcss/browser@4"></script>
+    <link href="https://unpkg.com/boxicons@2.1.4/css/boxicons.min.css" rel="stylesheet">
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap');
+        body { font-family: 'Inter', sans-serif; }
+        .sidebar-link:hover { background: rgba(255,255,255,0.1); }
+        
+        /* Modal Animation */
+        #imageModal { transition: opacity 0.3s ease; }
+        .modal-content { transition: transform 0.3s ease; }
+    </style>
+</head>
+<body class="bg-slate-50 min-h-screen flex">
+
+    {% include 'sidebar.html' %}
+
+    <main class="flex-grow p-8 flex flex-col h-screen overflow-hidden">
+        
+        <header class="flex justify-between items-center mb-8 shrink-0">
+            <div>
+                <h2 class="text-2xl font-bold text-slate-800 flex items-center gap-2">
+                    <i class='bx bx-history text-blue-600'></i> Log Aktivitas Presensi
+                </h2>
+                <p class="text-sm text-slate-500 mt-1">Pantau riwayat verifikasi wajah AI secara real-time.</p>
+            </div>
+            <a href="/dashboard" class="bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 px-5 py-2.5 rounded-xl font-semibold shadow-sm transition flex items-center gap-2">
+                <i class='bx bx-arrow-back'></i> Kembali
+            </a>
+        </header>
+
+        <div class="bg-white rounded-3xl shadow-sm border border-slate-100 flex flex-col flex-grow overflow-hidden">
+            
+            <div class="p-6 border-b border-slate-100 flex justify-between items-center bg-slate-50/50 shrink-0">
+                <div class="flex items-center gap-3">
+                    <div class="flex h-3 w-3 relative">
+                        <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                        <span class="relative inline-flex rounded-full h-3 w-3 bg-emerald-500"></span>
+                    </div>
+                    <h3 class="font-bold text-slate-700 uppercase tracking-wider text-xs">Riwayat Pemindaian</h3>
+                </div>
+                <span class="text-[10px] bg-slate-200 text-slate-600 px-3 py-1 rounded-full font-bold">Halaman {{ page }}</span>
+            </div>
+
+            <div class="overflow-y-auto flex-grow p-0">
+                <table class="w-full text-left border-collapse">
+                    <thead class="bg-white sticky top-0 z-10 shadow-sm text-[10px] uppercase tracking-widest text-slate-400">
+                        <tr>
+                            <th class="px-6 py-4 border-b border-slate-100">Waktu</th>
+                            <th class="px-6 py-4 border-b border-slate-100">Snapshot AI</th>
+                            <th class="px-6 py-4 border-b border-slate-100">Identitas Siswa</th>
+                            <th class="px-6 py-4 border-b border-slate-100">Sesi Ibadah</th>
+                            <th class="px-6 py-4 border-b border-slate-100">Status Autentikasi</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-slate-50 text-sm">
+                        {% for log in logs %}
+                        <tr class="hover:bg-blue-50/30 transition group">
+                            <td class="px-6 py-4 whitespace-nowrap">
+                                <span class="font-mono text-xs font-semibold text-slate-600">{{ log.waktu_hadir.strftime('%d %b %Y') }}</span><br>
+                                <span class="font-mono text-[10px] text-slate-400">{{ log.waktu_hadir.strftime('%H:%M:%S') }} WIB</span>
+                            </td>
+                            <td class="px-6 py-4">
+                                {% if log.foto %}
+                                <img src="{{ log.foto }}" onclick="openModal('{{ log.foto }}', '{{ log.nama }}')" class="w-16 h-12 object-cover rounded-lg border border-slate-200 shadow-sm cursor-pointer hover:scale-105 transition-transform duration-200 ring-2 ring-transparent hover:ring-blue-400">
+                                {% else %}
+                                <div class="w-16 h-12 bg-slate-100 rounded-lg flex items-center justify-center text-slate-400 text-xs border border-slate-200"><i class='bx bx-image-x'></i></div>
+                                {% endif %}
+                            </td>
+                            <td class="px-6 py-4">
+                                <p class="font-bold text-slate-800">{{ log.nama }}</p>
+                                <p class="text-[10px] font-semibold text-slate-500 bg-slate-100 inline-block px-2 py-0.5 rounded mt-1">{{ log.kelas }}</p>
+                            </td>
+                            <td class="px-6 py-4 text-slate-600 font-medium text-xs">
+                                {{ log.jenis_ibadah }}
+                            </td>
+                            <td class="px-6 py-4">
+                                {% if 'Verified' in log.keterangan %}
+                                <div class="flex items-center gap-2">
+                                    <span class="flex items-center justify-center w-6 h-6 rounded-full bg-emerald-100 text-emerald-600"><i class='bx bx-check'></i></span>
+                                    <span class="text-xs font-bold text-emerald-600">VERIFIED</span>
+                                </div>
+                                {% else %}
+                                <div class="flex flex-col gap-1">
+                                    <div class="flex items-center gap-2">
+                                        <span class="flex items-center justify-center w-6 h-6 rounded-full bg-red-100 text-red-600"><i class='bx bx-x'></i></span>
+                                        <span class="text-xs font-bold text-red-600">FAILED</span>
+                                    </div>
+                                    <span class="text-[9px] text-red-400 font-mono leading-tight max-w-[150px] truncate" title="{{ log.keterangan }}">{{ log.keterangan }}</span>
+                                </div>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% else %}
+                        <tr>
+                            <td colspan="5" class="px-6 py-12 text-center text-slate-400">
+                                <i class='bx bx-ghost text-4xl mb-3 opacity-50'></i>
+                                <p>Belum ada aktivitas presensi yang terekam.</p>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+
+            <div class="p-4 border-t border-slate-100 bg-slate-50 flex justify-between items-center shrink-0">
+                <p class="text-xs text-slate-500 font-medium">Menampilkan maksimal 10 data per halaman</p>
+                <div class="flex gap-2">
+                    {% if page > 1 %}
+                    <a href="/aktivitas_terbaru?page={{ page - 1 }}" class="px-4 py-2 text-xs font-bold text-slate-600 bg-white border border-slate-200 rounded-lg hover:bg-slate-100 transition shadow-sm">
+                        <i class='bx bx-chevron-left'></i> Sebelumnya
+                    </a>
+                    {% else %}
+                    <button disabled class="px-4 py-2 text-xs font-bold text-slate-400 bg-slate-100 border border-slate-200 rounded-lg cursor-not-allowed">
+                        <i class='bx bx-chevron-left'></i> Sebelumnya
+                    </button>
+                    {% endif %}
+
+                    {% if logs|length == 10 %}
+                    <a href="/aktivitas_terbaru?page={{ page + 1 }}" class="px-4 py-2 text-xs font-bold text-blue-600 bg-blue-50 border border-blue-200 rounded-lg hover:bg-blue-100 transition shadow-sm">
+                        Selanjutnya <i class='bx bx-chevron-right'></i>
+                    </a>
+                    {% else %}
+                    <button disabled class="px-4 py-2 text-xs font-bold text-slate-400 bg-slate-100 border border-slate-200 rounded-lg cursor-not-allowed">
+                        Selanjutnya <i class='bx bx-chevron-right'></i>
+                    </button>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <div id="imageModal" class="fixed inset-0 z-50 hidden bg-slate-900/90 backdrop-blur-sm flex items-center justify-center p-4 opacity-0 pointer-events-none">
+        <div class="modal-content relative max-w-2xl w-full bg-white rounded-2xl shadow-2xl overflow-hidden scale-95">
+            <button onclick="closeModal()" class="absolute top-4 right-4 w-8 h-8 flex items-center justify-center bg-black/50 hover:bg-red-500 text-white rounded-full transition z-10">
+                <i class='bx bx-x text-xl'></i>
+            </button>
+            <div class="p-4 border-b border-slate-100 bg-slate-50">
+                <h3 id="modalTitle" class="font-bold text-slate-800">Detail Snapshot</h3>
+            </div>
+            <div class="bg-slate-950 p-2 flex justify-center">
+                <img id="modalImage" src="" alt="Snapshot Detail" class="max-h-[60vh] object-contain rounded">
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const modal = document.getElementById('imageModal');
+        const modalImg = document.getElementById('modalImage');
+        const modalTitle = document.getElementById('modalTitle');
+        const modalContent = document.querySelector('.modal-content');
+
+        function openModal(imgSrc, studentName) {
+            modalImg.src = imgSrc;
+            modalTitle.innerText = `Snapshot AI: ${studentName}`;
+            
+            modal.classList.remove('hidden', 'pointer-events-none');
+            // Sedikit delay untuk memicu animasi CSS transition
+            setTimeout(() => {
+                modal.classList.remove('opacity-0');
+                modalContent.classList.remove('scale-95');
+                modalContent.classList.add('scale-100');
+            }, 10);
+        }
+
+        function closeModal() {
+            modal.classList.add('opacity-0');
+            modalContent.classList.remove('scale-100');
+            modalContent.classList.add('scale-95');
+            
+            setTimeout(() => {
+                modal.classList.add('hidden', 'pointer-events-none');
+                modalImg.src = '';
+            }, 300);
+        }
+
+        // Tutup modal jika area luar gambar diklik
+        modal.addEventListener('click', function(e) {
+            if (e.target === modal) {
+                closeModal();
+            }
+        });
+        
+        // Tutup modal dengan tombol ESC
+        document.addEventListener('keydown', function(e) {
+            if (e.key === 'Escape' && !modal.classList.contains('hidden')) {
+                closeModal();
+            }
+        });
+    </script>
+</body>
+</html>
