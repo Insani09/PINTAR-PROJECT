@@ -5,18 +5,27 @@
     <title>Laporan Presensi PINTAR</title>
     <style>
         @page {
-        size: A4 portrait;
-        margin: 2cm;
-        /* Mengatur posisi footer ke bawah kanan */
-        @frame footer {
-            -pdf-frame-content: footerContent;
-            bottom: 1cm;
-            margin-right: 2cm; /* Memberikan jarak dari tepi kanan */
-            text-align: right;  /* Membuat tulisan rata kanan */
-            font-size: 8pt;
+            size: A4 portrait;
+            margin: 2cm;
+            margin-bottom: 2.5cm; /* Memberikan ruang ekstra di bawah agar tabel tidak menimpa nomor halaman */
+            
+            /* Konfigurasi Frame Footer xhtml2pdf yang benar */
+            @frame footer {
+                -pdf-frame-content: footerContent;
+                bottom: 1cm;
+                left: 2cm;
+                right: 2cm;
+                height: 1cm;
+            }
+        }
+        
+        /* Memaksa teks nomor halaman rata kanan */
+        #footerContent {
+            text-align: right;
+            font-size: 9pt;
             color: #94a3b8;
         }
-    }
+
         body {
             font-family: 'Helvetica', sans-serif;
             color: #1e293b;

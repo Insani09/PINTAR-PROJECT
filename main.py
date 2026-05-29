@@ -1,9 +1,8 @@
-# main.py
 import os
 import base64
 import hashlib
 import datetime
-from flask import Flask, render_template, render_template_string, request, redirect, url_for, session, jsonify, flash, Response
+from flask import Flask, render_template, request, redirect, url_for, session, jsonify, flash, Response
 import mysql.connector
 import cv2
 import numpy as np
@@ -12,6 +11,7 @@ from io import BytesIO
 from xhtml2pdf import pisa  # Memakai xhtml2pdf agar 100% aman di Windows/Laragon
 
 app = Flask(__name__)
+app.config['TEMPLATES_AUTO_RELOAD'] = True
 app.secret_key = "super_secret_key_pintar_rpl_2026"
 app.config['UPLOAD_FOLDER'] = 'static/uploads'
 
@@ -36,8 +36,12 @@ face_cascade = cv2.CascadeClassifier(cv2.data.haarcascades + 'haarcascade_fronta
 
 def verify_face(base64_webcam, filename_master):
     try:
-        # 1. Decode webcam image
-        encoded_data = base64_webcam.split(',')[1]
+        # 1. Decode webcam image (dengan pengamanan format)
+        if ',' in base64_webcam:
+            encoded_data = base64_webcam.split(',')[1]
+        else:
+            return False, "Format gambar dari kamera tidak valid"
+            
         nparr = np.frombuffer(base64.b64decode(encoded_data), np.uint8)
         img_webcam = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
         
@@ -193,12 +197,12 @@ def dashboard():
             
         return redirect(url_for('dashboard'))
 
-    # --- 2. AMBIL STATISTIK HARI INI (UPDATE LOGIKA) ---
+    # --- 2. AMBIL STATISTIK HARI INI ---
     # Total Siswa Terdaftar
     cursor.execute("SELECT COUNT(*) as total FROM siswa")
     total_siswa = cursor.fetchone()['total']
     
-    # Hadir (Verified) - menggunakan LIKE '%Verified%'
+    # Hadir (Verified)
     cursor.execute("""
         SELECT COUNT(*) as hadir 
         FROM absensi 
@@ -207,7 +211,7 @@ def dashboard():
     """)
     total_hadir = cursor.fetchone()['hadir']
 
-    # Gagal - menggunakan logika kebalikan dari Verified
+    # Gagal
     cursor.execute("""
         SELECT COUNT(*) as gagal 
         FROM absensi 
@@ -242,27 +246,81 @@ def dashboard():
                                'gagal': total_gagal
                            })
 
-@app.route('/hapus_siswa/<int:id>')
-def hapus_siswa(id):
-    if 'admin_id' not in session:
+# --- FUNGSI HAPUS AKTIVITAS YANG SUDAH DIGABUNGKAN ---
+@app.route('/hapus_aktivitas/<int:id>')
+def hapus_aktivitas(id):
+    if 'admin_id' not in session: 
         return redirect(url_for('login'))
+    
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute("DELETE FROM absensi WHERE id = %s", (id,))
+        conn.commit()
+        cursor.close()
+        conn.close()
+        flash("Log aktivitas berhasil dihapus!", "success")
+    except Exception as e:
+        flash(f"Error saat menghapus aktivitas: {e}", "danger")
         
+    # Redirect kembali ke halaman asal (dashboard atau halaman aktivitas terbaru)
+    return redirect(request.referrer or url_for('dashboard'))
+
+@app.route('/aktivitas_terbaru')
+def aktivitas_terbaru():
+    if 'admin_id' not in session: return redirect(url_for('login'))
+    
+    # Ambil halaman saat ini (default halaman 1)
+    page = int(request.args.get('page', 1))
+    limit = 5 # Batasi HANYA 5 data per halaman
+    offset = (page - 1) * limit
+    
     conn = get_db_connection()
     cursor = conn.cursor(dictionary=True)
     
-    cursor.execute("SELECT foto_master FROM siswa WHERE id = %s", (id,))
-    siswa = cursor.fetchone()
-    if siswa and siswa['foto_master']:
-        path_foto = os.path.join(app.config['UPLOAD_FOLDER'], 'siswa', siswa['foto_master'])
-        if os.path.exists(path_foto):
-            os.remove(path_foto)
-            
-    cursor.execute("DELETE FROM siswa WHERE id = %s", (id,))
-    conn.commit()
-    cursor.close()
-    conn.close()
+    # Hitung total data untuk mengetahui jumlah maksimal halaman
+    cursor.execute("SELECT COUNT(*) as total FROM absensi")
+    total_data = cursor.fetchone()['total']
+    total_pages = (total_data + limit - 1) // limit if total_data > 0 else 1
     
-    flash("Data siswa berhasil dihapus!", "success")
+    # Ambil 5 data terbaru sesuai halaman
+    cursor.execute("""
+        SELECT absensi.*, siswa.nama, siswa.kelas 
+        FROM absensi 
+        JOIN siswa ON absensi.siswa_id = siswa.id 
+        ORDER BY absensi.waktu_hadir DESC LIMIT %s OFFSET %s
+    """, (limit, offset))
+    logs = cursor.fetchall()
+    cursor.close(); conn.close()
+    
+    return render_template('aktivitas.html', logs=logs, page=page, total_pages=total_pages)
+
+@app.route('/edit_siswa/<int:id>', methods=['POST'])
+def edit_siswa(id):
+    if 'admin_id' not in session: 
+        return redirect(url_for('login'))
+        
+    id_card = request.form.get('id_card')
+    nama = request.form.get('nama')
+    nisn = request.form.get('nisn')
+    kelas = request.form.get('kelas')
+    agama = request.form.get('agama')
+    
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute("""
+            UPDATE siswa 
+            SET id_card=%s, nama=%s, nisn=%s, kelas=%s, agama=%s 
+            WHERE id=%s
+        """, (id_card, nama, nisn, kelas, agama, id))
+        conn.commit()
+        cursor.close()
+        conn.close()
+        flash("Data siswa berhasil diperbarui!", "success")
+    except Exception as e:
+        flash(f"Gagal memperbarui data: Pastikan UID RFID atau NISN belum dipakai siswa lain.", "danger")
+        
     return redirect(url_for('dashboard'))
 
 @app.route('/absen', methods=['GET', 'POST'])
@@ -326,45 +384,21 @@ def absen():
                            status_msg=status_msg,
                            status_type=status_type)
 
-# --- ROUTE UNTUK HALAMAN BARU ---
-
-@app.route('/aktivitas_terbaru')
-def aktivitas_terbaru():
-    if 'admin_id' not in session: return redirect(url_for('login'))
-    
-    # Ambil halaman saat ini untuk navigasi
-    page = int(request.args.get('page', 1))
-    offset = (page - 1) * 10
-    
-    conn = get_db_connection()
-    cursor = conn.cursor(dictionary=True)
-    
-    # Ambil 10 data terbaru
-    cursor.execute("""
-        SELECT absensi.*, siswa.nama, siswa.kelas 
-        FROM absensi 
-        JOIN siswa ON absensi.siswa_id = siswa.id 
-        ORDER BY absensi.waktu_hadir DESC LIMIT 10 OFFSET %s
-    """, (offset,))
-    logs = cursor.fetchall()
-    cursor.close(); conn.close()
-    
-    return render_template('aktivitas.html', logs=logs, page=page)
-
-@app.route('/edit_siswa/<int:id>', methods=['POST'])
-def edit_siswa(id):
-    if 'admin_id' not in session: return redirect(url_for('login'))
-    # Logika UPDATE siswa SET ... WHERE id = id
-    flash("Data siswa berhasil diperbarui!", "success")
-    return redirect(url_for('dashboard'))
+@app.route('/pengaturan_pdf')
+def pengaturan_pdf():
+    # Proteksi halaman agar hanya admin yang bisa akses
+    if 'admin_id' not in session: 
+        return redirect(url_for('login'))
+        
+    return render_template('pengaturan_pdf.html')
 
 # ==========================================
 # REPORT GENERATOR ENGINE
 # ==========================================
 @app.route('/export_pdf')
 def export_pdf():
-    # Ambil parameter jika ada, default diatur ke Adrian
-    nama_pembina = request.args.get('nama_pembina', 'M. Adrian Kurniawan, S.Pd.')
+    # Ambil parameter jika ada, default diatur ke Pembina
+    nama_pembina = request.args.get('nama_pembina', 'Sunghoon Park, S.Pd.')
     nip_pembina = request.args.get('nip_pembina', '19850311 201001 2 003')
     filter_ibadah = request.args.get('filter_ibadah', 'Semua')
     
@@ -373,18 +407,32 @@ def export_pdf():
     
     if filter_ibadah == 'Semua':
         cursor.execute("""
-            SELECT absensi.*, siswa.nama, siswa.kelas, siswa.nisn 
+            SELECT MAX(absensi.waktu_hadir) as waktu_hadir, 
+                   absensi.jenis_ibadah, 
+                   absensi.keterangan, 
+                   siswa.nama, 
+                   siswa.kelas, 
+                   siswa.nisn 
             FROM absensi 
             JOIN siswa ON absensi.siswa_id = siswa.id 
-            ORDER BY absensi.waktu_hadir DESC
+            WHERE absensi.keterangan LIKE '%Verified%'
+            GROUP BY siswa.id, siswa.nama, siswa.kelas, siswa.nisn, absensi.jenis_ibadah, absensi.keterangan
+            ORDER BY waktu_hadir DESC
         """)
     else:
         cursor.execute("""
-            SELECT absensi.*, siswa.nama, siswa.kelas, siswa.nisn 
+            SELECT MAX(absensi.waktu_hadir) as waktu_hadir, 
+                   absensi.jenis_ibadah, 
+                   absensi.keterangan, 
+                   siswa.nama, 
+                   siswa.kelas, 
+                   siswa.nisn 
             FROM absensi 
             JOIN siswa ON absensi.siswa_id = siswa.id 
-            WHERE absensi.jenis_ibadah = %s
-            ORDER BY absensi.waktu_hadir DESC
+            WHERE absensi.jenis_ibadah = %s 
+            AND absensi.keterangan LIKE '%Verified%'
+            GROUP BY siswa.id, siswa.nama, siswa.kelas, siswa.nisn, absensi.jenis_ibadah, absensi.keterangan
+            ORDER BY waktu_hadir DESC
         """, (filter_ibadah,))
         
     logs = cursor.fetchall()
@@ -394,7 +442,7 @@ def export_pdf():
     # Format tanggal untuk TTD
     tgl = datetime.datetime.now().strftime("%d %B %Y")
     
-    # Gunakan render_template() langsung ke file cetak_pdf.html!
+    # Gunakan render_template() langsung ke file cetak_pdf.html
     rendered_html = render_template(
         'cetak_pdf.html', 
         logs=logs, 

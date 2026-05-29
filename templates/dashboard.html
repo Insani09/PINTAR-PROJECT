@@ -131,12 +131,12 @@
 
         <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
             
-            <div class="bg-white rounded-3xl shadow-sm border border-slate-100 overflow-hidden">
-                <div class="p-6 border-b border-slate-50 flex justify-between items-center bg-slate-50/50">
+            <div class="bg-white rounded-3xl shadow-sm border border-slate-100 overflow-hidden flex flex-col">
+                <div class="p-6 border-b border-slate-50 flex justify-between items-center bg-slate-50/50 shrink-0">
                     <h3 class="font-bold text-slate-800 flex items-center gap-2"><i class='bx bxs-user-detail text-blue-500'></i> Database Siswa</h3>
                     <span class="text-[10px] bg-blue-100 text-blue-600 px-2 py-1 rounded-md font-bold">{{ siswa|length }} TOTAL</span>
                 </div>
-                <div class="overflow-x-auto">
+                <div class="overflow-x-auto flex-grow">
                     <table class="w-full text-left">
                         <thead class="bg-slate-50 text-[10px] uppercase tracking-widest text-slate-400">
                             <tr>
@@ -153,8 +153,13 @@
                                     <p class="text-[10px] text-slate-400">{{ s.kelas }} | {{ s.agama }}</p>
                                 </td>
                                 <td class="px-6 py-4 font-mono text-xs text-blue-600">{{ s.id_card }}</td>
-                                <td class="px-6 py-4">
-                                    <a href="/hapus_siswa/{{ s.id }}" onclick="return confirm('Hapus data siswa ini?')" class="text-red-400 hover:text-red-600 text-lg"><i class='bx bx-trash'></i></a>
+                                <td class="px-6 py-4 flex gap-3 items-center">
+                                    <button onclick="bukaModalEdit('{{ s.id }}', '{{ s.id_card }}', '{{ s.nisn }}', '{{ s.nama }}', '{{ s.kelas }}', '{{ s.agama }}')" class="text-blue-500 hover:text-blue-700 text-lg">
+                                        <i class='bx bx-edit'></i>
+                                    </button>
+                                    <a href="/hapus_siswa/{{ s.id }}" onclick="return confirm('Hapus data siswa ini?')" class="text-red-400 hover:text-red-600 text-lg">
+                                        <i class='bx bx-trash'></i>
+                                    </a>
                                 </td>
                             </tr>
                             {% endfor %}
@@ -163,15 +168,15 @@
                 </div>
             </div>
 
-            <div class="bg-white rounded-3xl shadow-sm border border-slate-100 overflow-hidden">
-                <div class="p-6 border-b border-slate-50 flex justify-between items-center bg-slate-50/50">
+            <div class="bg-white rounded-3xl shadow-sm border border-slate-100 overflow-hidden flex flex-col">
+                <div class="p-6 border-b border-slate-50 flex justify-between items-center bg-slate-50/50 shrink-0">
                     <h3 class="font-bold text-slate-800 flex items-center gap-2"><i class='bx bxs-time text-emerald-500'></i> Aktivitas Terbaru</h3>
                     <div class="flex items-center gap-1.5">
                         <div class="w-2 h-2 bg-emerald-500 rounded-full animate-ping"></div>
                         <span class="text-[10px] text-slate-400 font-bold uppercase">Live Feed</span>
                     </div>
                 </div>
-                <div class="overflow-x-auto">
+                <div class="overflow-x-auto flex-grow">
                     <table class="w-full text-left">
                         <thead class="bg-slate-50 text-[10px] uppercase tracking-widest text-slate-400">
                             <tr>
@@ -182,35 +187,103 @@
                         </thead>
                         <tbody class="divide-y divide-slate-50 text-sm">
                             {% for log in log_absensi %}
-                            <tr class="hover:bg-slate-50/80 transition">
+                            <tr class="hover:bg-slate-50/80 transition group">
                                 <td class="px-6 py-3">
-                                    <img src="{{ log.foto }}" class="w-12 h-9 object-cover rounded-lg border border-slate-100 shadow-sm">
+                                    <img src="{{ log.foto }}" class="w-12 h-9 object-cover rounded-lg border border-slate-100 shadow-sm" alt="Snapshot">
                                 </td>
                                 <td class="px-6 py-3">
                                     <p class="font-bold text-slate-700 leading-tight">{{ log.nama }}</p>
                                     <p class="text-[10px] text-slate-400">{{ log.waktu_hadir.strftime('%H:%M:%S') }} - {{ log.jenis_ibadah }}</p>
                                 </td>
                                 <td class="px-6 py-3">
-                                    {% if 'Verified' in log.keterangan %}
-                                    <span class="px-2 py-1 bg-emerald-50 text-emerald-600 text-[10px] font-bold rounded-lg border border-emerald-100">MATCH</span>
-                                    {% else %}
-                                    <span class="px-2 py-1 bg-red-50 text-red-600 text-[10px] font-bold rounded-lg border border-red-100">FAILED</span>
-                                    {% endif %}
+                                    <div class="flex items-center justify-between">
+                                        <div>
+                                            {% if 'Verified' in log.keterangan %}
+                                            <span class="px-2 py-1 bg-emerald-50 text-emerald-600 text-[10px] font-bold rounded-lg border border-emerald-100">MATCH</span>
+                                            {% else %}
+                                            <span class="px-2 py-1 bg-red-50 text-red-600 text-[10px] font-bold rounded-lg border border-red-100">FAILED</span>
+                                            {% endif %}
+                                        </div>
+                                        <a href="/hapus_aktivitas/{{ log.id }}" onclick="return confirm('Hapus log aktivitas ini?')" class="text-red-400 hover:text-red-600 transition p-1 opacity-0 group-hover:opacity-100" title="Hapus">
+                                            <i class='bx bx-trash text-lg'></i>
+                                        </a>
+                                    </div>
                                 </td>
                             </tr>
                             {% endfor %}
+                            {% if log_absensi|length == 0 %}
+                            <tr>
+                                <td colspan="3" class="px-6 py-8 text-center text-slate-400 text-sm">Belum ada aktivitas terekam.</td>
+                            </tr>
+                            {% endif %}
                         </tbody>
                     </table>
+                </div>
+                <div class="p-4 border-t border-slate-50 bg-slate-50/50 text-center shrink-0">
+                    <a href="/aktivitas_terbaru" class="text-xs font-bold text-blue-600 hover:text-blue-800 transition uppercase tracking-wider flex items-center justify-center gap-1">
+                        Lihat Semua Aktivitas <i class='bx bx-right-arrow-alt text-base'></i>
+                    </a>
                 </div>
             </div>
 
         </div>
     </main>
 
+    <div id="modalEdit" class="hidden fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+        <form id="formEdit" method="POST" action="/edit_siswa" class="bg-white p-6 rounded-2xl w-96 relative max-h-[90vh] overflow-y-auto">
+            <button type="button" onclick="tutupModalEdit()" class="absolute top-4 right-4 text-slate-400 hover:text-slate-600 text-xl"><i class='bx bx-x'></i></button>
+            
+            <h3 class="font-bold mb-4 text-slate-800">Edit Data Siswa</h3>
+            <input type="hidden" name="id" id="editId">
+            
+            <label class="block text-xs text-slate-500 mb-1">UID Kartu RFID</label>
+            <input type="text" name="id_card" id="editIdCard" class="w-full border p-2 rounded mb-3 focus:outline-none focus:border-blue-500" required>
+            
+            <label class="block text-xs text-slate-500 mb-1">NISN</label>
+            <input type="text" name="nisn" id="editNisn" class="w-full border p-2 rounded mb-3 focus:outline-none focus:border-blue-500" required>
+            
+            <label class="block text-xs text-slate-500 mb-1">Nama Lengkap</label>
+            <input type="text" name="nama" id="editNama" class="w-full border p-2 rounded mb-3 focus:outline-none focus:border-blue-500" required>
+            
+            <label class="block text-xs text-slate-500 mb-1">Kelas</label>
+            <input type="text" name="kelas" id="editKelas" class="w-full border p-2 rounded mb-3 focus:outline-none focus:border-blue-500" required>
+
+            <label class="block text-xs text-slate-500 mb-1">Agama</label>
+            <select name="agama" id="editAgama" class="w-full border p-2 rounded mb-4 focus:outline-none focus:border-blue-500" required>
+                <option value="Islam">Islam</option>
+                <option value="Kristen">Kristen</option>
+                <option value="Katolik">Katolik</option>
+                <option value="Hindu">Hindu</option>
+                <option value="Buddha">Buddha</option>
+                <option value="Khonghucu">Khonghucu</option>
+            </select>
+            
+            <button type="submit" class="w-full bg-blue-600 text-white py-2 rounded-lg font-medium hover:bg-blue-700 transition">Simpan Perubahan</button>
+        </form>
+    </div>
+
     <script>
         function toggleForm() {
             const form = document.getElementById('formSiswa');
             form.classList.toggle('hidden');
+        }
+
+        // PEMBARUAN: Script JS menangkap lebih banyak parameter
+        function bukaModalEdit(id, id_card, nisn, nama, kelas, agama) {
+            document.getElementById('modalEdit').classList.remove('hidden');
+            
+            document.getElementById('formEdit').action = '/edit_siswa/' + id; 
+            
+            document.getElementById('editId').value = id;
+            document.getElementById('editIdCard').value = id_card;
+            document.getElementById('editNisn').value = nisn;
+            document.getElementById('editNama').value = nama;
+            document.getElementById('editKelas').value = kelas;
+            document.getElementById('editAgama').value = agama;
+        }
+
+        function tutupModalEdit() {
+            document.getElementById('modalEdit').classList.add('hidden');
         }
     </script>
 </body>

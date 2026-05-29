@@ -44,7 +44,6 @@
                     </div>
                     <h3 class="font-bold text-slate-700 uppercase tracking-wider text-xs">Riwayat Pemindaian</h3>
                 </div>
-                <span class="text-[10px] bg-slate-200 text-slate-600 px-3 py-1 rounded-full font-bold">Halaman {{ page }}</span>
             </div>
 
             <div class="overflow-y-auto flex-grow p-0">
@@ -56,6 +55,7 @@
                             <th class="px-6 py-4 border-b border-slate-100">Identitas Siswa</th>
                             <th class="px-6 py-4 border-b border-slate-100">Sesi Ibadah</th>
                             <th class="px-6 py-4 border-b border-slate-100">Status Autentikasi</th>
+                            <th class="px-6 py-4 border-b border-slate-100">Aksi</th>
                         </tr>
                     </thead>
                     <tbody class="divide-y divide-slate-50 text-sm">
@@ -95,10 +95,18 @@
                                 </div>
                                 {% endif %}
                             </td>
+                            
+                            <td class="px-6 py-4">
+                                <a href="/hapus_aktivitas/{{ log.id }}" 
+                                   onclick="return confirm('Yakin ingin menghapus log aktivitas ini?')" 
+                                   class="inline-flex items-center gap-1 text-red-500 hover:text-red-700 bg-red-50 hover:bg-red-100 px-3 py-1.5 rounded-lg text-sm font-semibold transition border border-red-200">
+                                    <i class='bx bx-trash'></i> Hapus
+                                </a>
+                            </td>
                         </tr>
                         {% else %}
                         <tr>
-                            <td colspan="5" class="px-6 py-12 text-center text-slate-400">
+                            <td colspan="6" class="px-6 py-12 text-center text-slate-400">
                                 <i class='bx bx-ghost text-4xl mb-3 opacity-50'></i>
                                 <p>Belum ada aktivitas presensi yang terekam.</p>
                             </td>
@@ -109,29 +117,33 @@
             </div>
 
             <div class="p-4 border-t border-slate-100 bg-slate-50 flex justify-between items-center shrink-0">
-                <p class="text-xs text-slate-500 font-medium">Menampilkan maksimal 10 data per halaman</p>
+                <p class="text-xs text-slate-500 font-medium">
+                    Menampilkan Halaman <span class="font-bold text-slate-800">{{ page }}</span> dari <span class="font-bold text-slate-800">{{ total_pages }}</span>
+                </p>
+                
                 <div class="flex gap-2">
                     {% if page > 1 %}
-                    <a href="/aktivitas_terbaru?page={{ page - 1 }}" class="px-4 py-2 text-xs font-bold text-slate-600 bg-white border border-slate-200 rounded-lg hover:bg-slate-100 transition shadow-sm">
-                        <i class='bx bx-chevron-left'></i> Sebelumnya
+                    <a href="?page={{ page - 1 }}" class="px-4 py-2 bg-white border border-slate-200 text-slate-600 hover:bg-slate-100 rounded-lg text-xs font-bold transition shadow-sm">
+                        &laquo; Sebelumnya
                     </a>
                     {% else %}
-                    <button disabled class="px-4 py-2 text-xs font-bold text-slate-400 bg-slate-100 border border-slate-200 rounded-lg cursor-not-allowed">
-                        <i class='bx bx-chevron-left'></i> Sebelumnya
+                    <button disabled class="px-4 py-2 bg-slate-100 border border-slate-200 text-slate-400 rounded-lg text-xs font-bold cursor-not-allowed">
+                        &laquo; Sebelumnya
                     </button>
                     {% endif %}
 
-                    {% if logs|length == 10 %}
-                    <a href="/aktivitas_terbaru?page={{ page + 1 }}" class="px-4 py-2 text-xs font-bold text-blue-600 bg-blue-50 border border-blue-200 rounded-lg hover:bg-blue-100 transition shadow-sm">
-                        Selanjutnya <i class='bx bx-chevron-right'></i>
+                    {% if page < total_pages %}
+                    <a href="?page={{ page + 1 }}" class="px-4 py-2 bg-blue-50 border border-blue-200 text-blue-600 hover:bg-blue-100 rounded-lg text-xs font-bold transition shadow-sm">
+                        Selanjutnya &raquo;
                     </a>
                     {% else %}
-                    <button disabled class="px-4 py-2 text-xs font-bold text-slate-400 bg-slate-100 border border-slate-200 rounded-lg cursor-not-allowed">
-                        Selanjutnya <i class='bx bx-chevron-right'></i>
+                    <button disabled class="px-4 py-2 bg-slate-100 border border-slate-200 text-slate-400 rounded-lg text-xs font-bold cursor-not-allowed">
+                        Selanjutnya &raquo;
                     </button>
                     {% endif %}
                 </div>
             </div>
+
         </div>
     </main>
 
@@ -160,7 +172,6 @@
             modalTitle.innerText = `Snapshot AI: ${studentName}`;
             
             modal.classList.remove('hidden', 'pointer-events-none');
-            // Sedikit delay untuk memicu animasi CSS transition
             setTimeout(() => {
                 modal.classList.remove('opacity-0');
                 modalContent.classList.remove('scale-95');
@@ -179,14 +190,12 @@
             }, 300);
         }
 
-        // Tutup modal jika area luar gambar diklik
         modal.addEventListener('click', function(e) {
             if (e.target === modal) {
                 closeModal();
             }
         });
         
-        // Tutup modal dengan tombol ESC
         document.addEventListener('keydown', function(e) {
             if (e.key === 'Escape' && !modal.classList.contains('hidden')) {
                 closeModal();
