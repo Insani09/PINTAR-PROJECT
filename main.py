@@ -323,6 +323,38 @@ def edit_siswa(id):
         
     return redirect(url_for('dashboard'))
 
+@app.route('/hapus_siswa/<int:id>')
+def hapus_siswa(id):
+    # Pastikan admin sudah login
+    if 'admin_id' not in session: 
+        return redirect(url_for('login'))
+        
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        
+        # Hapus file foto master jika ada
+        cursor.execute("SELECT foto_master FROM siswa WHERE id = %s", (id,))
+        siswa = cursor.fetchone()
+        if siswa and siswa[0]:
+            path_foto = os.path.join(app.config['UPLOAD_FOLDER'], 'siswa', siswa[0])
+            if os.path.exists(path_foto):
+                os.remove(path_foto)
+
+        # Eksekusi query untuk menghapus data berdasarkan ID
+        cursor.execute("DELETE FROM siswa WHERE id = %s", (id,))
+        conn.commit()
+        
+        cursor.close()
+        conn.close()
+        
+        flash("Data siswa berhasil dihapus!", "success")
+    except Exception as e:
+        flash(f"Gagal menghapus data siswa. Error: {e}", "danger")
+        
+    # Kembalikan halaman ke dashboard setelah proses selesai
+    return redirect(url_for('dashboard'))
+
 @app.route('/absen', methods=['GET', 'POST'])
 def absen():
     if 'sesi_ibadah' not in session:
