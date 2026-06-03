@@ -1,9 +1,111 @@
-<form action="/export_pdf" method="GET" class="space-y-4">
-    <label>Nama Pembina:</label>
-    <input type="text" name="nama_pembina" value="M. Adrian Kurniawan, S.Pd.">
-    
-    <label>NIP:</label>
-    <input type="text" name="nip_pembina" value="19850311 201001 2 003">
-    
-    <button type="submit" class="bg-blue-600 text-white p-3 rounded">Generate PDF</button>
-</form>
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PINTAR - Pengaturan Laporan PDF</title>
+    <script src="https://unpkg.com/@tailwindcss/browser@4"></script>
+    <link href="https://unpkg.com/boxicons@2.1.4/css/boxicons.min.css" rel="stylesheet">
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap');
+        body { font-family: 'Inter', sans-serif; }
+        .sidebar-link:hover { background: rgba(255,255,255,0.1); }
+        .config-card { transition: all 0.3s ease; }
+    </style>
+</head>
+<body class="bg-slate-50 min-h-screen flex">
+
+    {% include 'components/sidebar.html' %}
+
+    <main class="flex-grow p-8 flex flex-col justify-center items-center">
+        
+        <div class="w-full max-w-2xl bg-white rounded-3xl shadow-xl border border-slate-100 p-8 config-card">
+            
+            <div class="flex items-center gap-4 mb-6 pb-6 border-b border-slate-100">
+                <div class="w-14 h-14 bg-red-50 text-red-500 rounded-2xl flex items-center justify-center text-3xl shadow-sm">
+                    <i class='bx bxs-file-pdf'></i>
+                </div>
+                <div>
+                    <h2 class="text-2xl font-bold text-slate-800">Pengaturan Laporan PDF</h2>
+                    <p class="text-sm text-slate-500 mt-0.5">Konfigurasi tanda tangan pembina & filter kehadiran sebelum mengunduh laporan PDF.</p>
+                </div>
+            </div>
+
+            <form action="/export_pdf" method="GET" target="_blank" class="space-y-6">
+                
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div>
+                        <label class="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Nama Guru Pembina</label>
+                        <input type="text" name="nama_pembina" required 
+                               value="M. Adrian Kurniawan, S.Pd."
+                               class="w-full px-4 py-3 rounded-xl border border-slate-200 focus:outline-none focus:border-blue-500 bg-white transition text-slate-700 font-medium" 
+                               placeholder="Nama pembina ibadah...">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">NIP Pembina</label>
+                        <input type="text" name="nip_pembina" required 
+                               value="19850311 201001 2 003"
+                               class="w-full px-4 py-3 rounded-xl border border-slate-200 focus:outline-none focus:border-blue-500 bg-white transition text-slate-700 font-mono text-sm" 
+                               placeholder="NIP pembina ibadah...">
+                    </div>
+                </div>
+
+                <div>
+                    <label class="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Filter Kehadiran Ibadah</label>
+                    <select id="selectFilterIbadah" name="filter_ibadah" onchange="checkFilterSesi(this.value)" 
+                            class="w-full px-4 py-3 rounded-xl border border-slate-200 focus:outline-none focus:border-blue-500 bg-white transition text-slate-700 font-medium">
+                        <option value="Semua">Semua Sesi Ibadah</option>
+                        <option value="Shalat Dzuhur Berjamaah">Shalat Dzuhur Berjamaah</option>
+                        <option value="Keputrian">Keputrian (Ibadah Khusus Perempuan)</option>
+                        <option value="Tadarus Al-Qur'an">Tadarus Al-Qur'an</option>
+                        <option value="Ibadah Pagi Kristen">Ibadah Pagi Kristen</option>
+                        <option value="Ibadah Pagi Katolik">Ibadah Pagi Katolik</option>
+                        <option value="Ibadah Pagi Hindu">Ibadah Pagi Hindu</option>
+                        <option value="Ibadah Pagi Buddha">Ibadah Pagi Buddha</option>
+                        <option value="Ibadah Pagi Khonghucu">Ibadah Pagi Khonghucu</option>
+                        <option value="custom">-- Tulis Nama Sesi Kustom --</option>
+                    </select>
+                </div>
+
+                <div id="customSesiDiv" class="hidden animate-in fade-in slide-in-from-top-2 duration-200">
+                    <label class="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Nama Sesi Kustom</label>
+                    <input type="text" id="customSesiInput" name="_custom_filter_ibadah"
+                           class="w-full px-4 py-3 rounded-xl border border-slate-200 focus:outline-none focus:border-blue-500 bg-white transition text-slate-700 font-medium" 
+                           placeholder="Ketik nama sesi secara manual...">
+                </div>
+
+                <div class="pt-4 border-t border-slate-100 flex justify-end gap-3">
+                    <a href="/dashboard" class="px-6 py-3.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl text-sm transition uppercase tracking-wider">
+                        Kembali
+                    </a>
+                    <button type="submit" class="px-8 py-3.5 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl text-sm transition uppercase tracking-wider flex items-center gap-2 shadow-lg shadow-blue-200 hover:shadow-xl cursor-pointer">
+                        <i class='bx bxs-file-pdf text-lg'></i> Generate PDF Laporan
+                    </button>
+                </div>
+            </form>
+        </div>
+
+    </main>
+
+    <script>
+        function checkFilterSesi(val) {
+            const customInputDiv = document.getElementById('customSesiDiv');
+            const customInput = document.getElementById('customSesiInput');
+            const selectEl = document.getElementById('selectFilterIbadah');
+            
+            if (val === 'custom') {
+                customInputDiv.classList.remove('hidden');
+                customInput.required = true;
+                customInput.name = 'filter_ibadah';
+                selectEl.name = '_filter_ibadah';
+                customInput.focus();
+            } else {
+                customInputDiv.classList.add('hidden');
+                customInput.required = false;
+                customInput.name = '_custom_filter_ibadah';
+                selectEl.name = 'filter_ibadah';
+            }
+        }
+    </script>
+</body>
+</html>

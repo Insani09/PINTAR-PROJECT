@@ -7,13 +7,13 @@
     </div>
     
     <nav class="flex-grow px-4 space-y-2 mt-4">
-        <a href="/dashboard" class="sidebar-link flex items-center gap-3 px-4 py-3 rounded-xl text-slate-400 hover:text-white transition">
+        <a href="/dashboard" class="sidebar-link flex items-center gap-3 px-4 py-3 rounded-xl transition {{ 'bg-blue-600 text-white font-medium shadow-lg shadow-blue-900/30' if request.path == '/dashboard' else 'text-slate-400 hover:text-white' }}">
             <i class='bx bxs-dashboard'></i> Dashboard
         </a>
-        <a href="/absen" class="sidebar-link flex items-center gap-3 px-4 py-3 rounded-xl text-slate-400 hover:text-white transition">
+        <a href="/absen" class="sidebar-link flex items-center gap-3 px-4 py-3 rounded-xl transition {{ 'bg-blue-600 text-white font-medium shadow-lg shadow-blue-900/30' if request.path == '/absen' else 'text-slate-400 hover:text-white' }}">
             <i class='bx bx-camera-home'></i> Terminal Mesin
         </a>
-        <a href="/export_pdf" target="_blank" class="sidebar-link flex items-center gap-3 px-4 py-3 rounded-xl text-slate-400 hover:text-white transition">
+        <a href="/pengaturan_pdf" class="sidebar-link flex items-center gap-3 px-4 py-3 rounded-xl transition {{ 'bg-blue-600 text-white font-medium shadow-lg shadow-blue-900/30' if request.path == '/pengaturan_pdf' else 'text-slate-400 hover:text-white' }}">
             <i class='bx bxs-file-pdf'></i> Laporan PDF
         </a>
     </nav>
@@ -28,8 +28,30 @@
                 <p class="text-[10px] text-slate-500">Super Administrator</p>
             </div>
         </div>
-        <a href="/logout" class="flex items-center gap-3 px-4 py-3 rounded-xl text-red-400 hover:bg-red-500/10 transition font-medium">
+        <a href="#" onclick="konfirmasiLogout(event)" class="flex items-center gap-3 px-4 py-3 rounded-xl text-red-400 hover:bg-red-500/10 transition font-medium">
             <i class='bx bx-log-out'></i> Logout
         </a>
     </div>
 </aside>
+
+<!-- Script Alert Logout Terpusat -->
+<script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+<script>
+    function konfirmasiLogout(event) {
+        event.preventDefault(); 
+        Swal.fire({
+            title: 'Keluar dari Sistem?',
+            text: "Anda harus login kembali untuk mengakses dashboard.",
+            icon: 'question',
+            showCancelButton: true,
+            confirmButtonColor: '#ef4444',
+            cancelButtonColor: '#64748b',
+            confirmButtonText: 'Ya, Logout!',
+            cancelButtonText: 'Batal'
+        }).then((result) => {
+            if (result.isConfirmed) {
+                window.location.href = '/logout';
+            }
+        });
+    }
+</script>

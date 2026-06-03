@@ -26,41 +26,7 @@
 </head>
 <body class="bg-slate-950 min-h-screen flex text-slate-100 overflow-hidden">
 
-    <aside class="w-64 bg-slate-900 text-slate-200 flex flex-col sticky top-0 h-screen shadow-2xl shrink-0 z-20 border-r border-slate-800">
-        <div class="p-6">
-            <h1 class="text-2xl font-bold text-white flex items-center gap-2">
-                <i class='bx bxs-zap text-emerald-400'></i> PINTAR
-            </h1>
-            <p class="text-[10px] text-slate-400 tracking-widest uppercase mt-1">Admin Management</p>
-        </div>
-        
-        <nav class="flex-grow px-4 space-y-2 mt-4">
-            <a href="/dashboard" class="sidebar-link flex items-center gap-3 px-4 py-3 rounded-xl text-slate-400 hover:text-white transition">
-                <i class='bx bxs-dashboard'></i> Dashboard
-            </a>
-            <a href="/absen" class="sidebar-link flex items-center gap-3 px-4 py-3 rounded-xl bg-blue-600 text-white font-medium shadow-lg shadow-blue-900/30">
-                <i class='bx bx-camera-home'></i> Terminal Mesin
-            </a>
-            <a href="/export_pdf" target="_blank" class="sidebar-link flex items-center gap-3 px-4 py-3 rounded-xl text-slate-400 hover:text-white transition">
-                <i class='bx bxs-file-pdf'></i> Laporan PDF
-            </a>
-        </nav>
-
-        <div class="p-4 mt-auto border-t border-slate-800 bg-slate-950/40">
-            <div class="flex items-center gap-3 mb-4 px-2">
-                <div class="w-8 h-8 rounded-full bg-emerald-500 flex items-center justify-center text-xs font-bold text-white uppercase">
-                    {{ session['admin_nama'][:1] if session.get('admin_nama') else 'A' }}
-                </div>
-                <div class="overflow-hidden">
-                    <p class="text-xs font-bold text-slate-200 truncate">{{ session.get('admin_nama', 'Admin') }}</p>
-                    <p class="text-[10px] text-slate-500">Super Administrator</p>
-                </div>
-            </div>
-            <a href="#" onclick="konfirmasiLogout(event)" class="flex items-center gap-3 px-4 py-3 rounded-xl text-red-400 hover:bg-red-500/10 transition font-medium">
-                <i class='bx bx-log-out'></i> Logout
-            </a>
-        </div>
-    </aside>
+    {% include 'components/sidebar.html' %}
 
     <main class="flex-grow p-8 flex flex-col h-screen overflow-y-auto bg-gradient-to-b from-slate-900 to-slate-950">
         
@@ -174,25 +140,7 @@
         setInterval(updateClock, 1000);
         updateClock();
 
-        function konfirmasiLogout(event) {
-            event.preventDefault(); 
-            Swal.fire({
-                title: 'Keluar dari Sistem?',
-                text: "Anda harus login kembali untuk mengakses dashboard.",
-                icon: 'question',
-                showCancelButton: true,
-                confirmButtonColor: '#ef4444',
-                cancelButtonColor: '#64748b',
-                confirmButtonText: 'Ya, Logout!',
-                cancelButtonText: 'Batal',
-                background: '#0f172a',
-                color: '#f8fafc'
-            }).then((result) => {
-                if (result.isConfirmed) {
-                    window.location.href = '/logout';
-                }
-            });
-        }
+        // Logout konfirmasi sekarang di-handle oleh components/sidebar.html
 
         // ==========================================
         // 2. SISTEM WEBCAM JAVASCRIPT & PENGIRIMAN DATA (AJAX)

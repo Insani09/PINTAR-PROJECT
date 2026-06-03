@@ -45,6 +45,9 @@ def verify_face(base64_webcam, filename_master):
         nparr = np.frombuffer(base64.b64decode(encoded_data), np.uint8)
         img_webcam = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
         
+        # Penting: Balik gambar webcam secara horizontal agar orientasinya sama dengan foto master (tidak mirrored)
+        img_webcam = cv2.flip(img_webcam, 1)
+        
         # 2. Load Master Image
         path_master = os.path.join(app.config['UPLOAD_FOLDER'], 'siswa', filename_master)
         if not os.path.exists(path_master): 
@@ -60,12 +63,15 @@ def verify_face(base64_webcam, filename_master):
             if len(faces) == 0:
                 return None # Wajah tidak ditemukan di gambar
                 
-            # Ambil wajah pertama yang terdeteksi (x, y, lebar, tinggi)
+            # Ambil wajah dengan ukuran TERBESAR (menghindari deteksi palsu/background noise)
+            faces = sorted(faces, key=lambda f: f[2] * f[3], reverse=True)
             (x, y, w, h) = faces[0]
             face_roi = gray[y:y+h, x:x+w] # Crop hanya area wajah
             
             # Resize ke ukuran standar untuk dibandingkan
-            return cv2.resize(face_roi, (150, 150))
+            resized = cv2.resize(face_roi, (150, 150))
+            # Histogram Equalization untuk normalisasi cahaya wajah
+            return cv2.equalizeHist(resized)
 
         # 4. Ambil wajah dari kedua gambar
         face_webcam = get_face_only(img_webcam)
@@ -76,17 +82,16 @@ def verify_face(base64_webcam, filename_master):
         if face_master is None:
             return False, "Foto master tidak valid (Wajah tidak terlihat jelas)!"
             
-        # 5. Bandingkan HANYA bagian wajahnya saja
-        diff = cv2.absdiff(face_webcam, face_master)
-        non_zero_count = np.count_nonzero(diff > 30) # Toleransi perbedaan cahaya ruangan
-        total_pixels = 150 * 150
+        # 5. Bandingkan menggunakan Normalized Template Matching (TM_CCOEFF_NORMED)
+        # Crop bagian tengah wajah master (110x110) sebagai template
+        template = face_master[20:130, 20:130]
+        res = cv2.matchTemplate(face_webcam, template, cv2.TM_CCOEFF_NORMED)
+        _, max_val, _, _ = cv2.minMaxLoc(res)
         
-        # Hitung persentase ketidakmiripan (error rate)
-        error_rate = (non_zero_count / total_pixels) * 100
-        match_score = max(0, 100 - error_rate)
+        match_score = max(0.0, max_val) * 100
         
-        # Threshold: Jika tingkat error di bawah 45%, maka dianggap wajah yang sama
-        if error_rate < 45:
+        # Threshold kecocokan diatur ke 35% (cukup ketat untuk wajah, namun toleran cahaya/posisi)
+        if match_score >= 35:
             return True, f"Verified ({int(match_score)}%)"
         else:
             return False, f"Wajah Tidak Identik ({int(match_score)}%)"
@@ -177,6 +182,7 @@ def dashboard():
         nisn = request.form['nisn']
         kelas = request.form['kelas']
         agama = request.form['agama']
+        jenis_kelamin = request.form['jenis_kelamin']
         file_foto = request.files['foto_master']
         
         if file_foto:
@@ -185,9 +191,9 @@ def dashboard():
             
             try:
                 cursor.execute("""
-                    INSERT INTO siswa (id_card, nama, nisn, kelas, agama, foto_master)
-                    VALUES (%s, %s, %s, %s, %s, %s)
-                """, (id_card, nama, nisn, kelas, agama, filename))
+                    INSERT INTO siswa (id_card, nama, nisn, kelas, agama, jenis_kelamin, foto_master)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s)
+                """, (id_card, nama, nisn, kelas, agama, jenis_kelamin, filename))
                 conn.commit()
                 flash("Data siswa berhasil disimpan!", "success")
             except mysql.connector.Error as err:
@@ -305,15 +311,16 @@ def edit_siswa(id):
     nisn = request.form.get('nisn')
     kelas = request.form.get('kelas')
     agama = request.form.get('agama')
+    jenis_kelamin = request.form.get('jenis_kelamin')
     
     try:
         conn = get_db_connection()
         cursor = conn.cursor()
         cursor.execute("""
             UPDATE siswa 
-            SET id_card=%s, nama=%s, nisn=%s, kelas=%s, agama=%s 
+            SET id_card=%s, nama=%s, nisn=%s, kelas=%s, agama=%s, jenis_kelamin=%s 
             WHERE id=%s
-        """, (id_card, nama, nisn, kelas, agama, id))
+        """, (id_card, nama, nisn, kelas, agama, jenis_kelamin, id))
         conn.commit()
         cursor.close()
         conn.close()
@@ -430,8 +437,8 @@ def pengaturan_pdf():
 @app.route('/export_pdf')
 def export_pdf():
     # Ambil parameter jika ada, default diatur ke Pembina
-    nama_pembina = request.args.get('nama_pembina', 'Sunghoon Park, S.Pd.')
-    nip_pembina = request.args.get('nip_pembina', '19850311 201001 2 003')
+    nama_pembina = request.args.get('nama_pembina', 'Vania Afrin Santoso, S.Pd.')
+    nip_pembina = request.args.get('nip_pembina', '2008290401234')
     filter_ibadah = request.args.get('filter_ibadah', 'Semua')
     
     conn = get_db_connection()

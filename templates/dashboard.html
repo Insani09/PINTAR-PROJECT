@@ -17,41 +17,7 @@
 </head>
 <body class="bg-slate-50 min-h-screen flex">
 
-    <aside class="w-64 bg-slate-900 text-slate-200 flex flex-col sticky top-0 h-screen shadow-2xl shrink-0 z-20">
-        <div class="p-6">
-            <h1 class="text-2xl font-bold text-white flex items-center gap-2">
-                <i class='bx bxs-zap text-emerald-400'></i> PINTAR
-            </h1>
-            <p class="text-[10px] text-slate-400 tracking-widest uppercase mt-1">Admin Management</p>
-        </div>
-        
-        <nav class="flex-grow px-4 space-y-2 mt-4">
-            <a href="/dashboard" class="sidebar-link flex items-center gap-3 px-4 py-3 rounded-xl bg-blue-600 text-white font-medium">
-                <i class='bx bxs-dashboard'></i> Dashboard
-            </a>
-            <a href="/absen" class="sidebar-link flex items-center gap-3 px-4 py-3 rounded-xl text-slate-400 hover:text-white transition">
-                <i class='bx bx-camera-home'></i> Terminal Mesin
-            </a>
-            <a href="/export_pdf" target="_blank" class="sidebar-link flex items-center gap-3 px-4 py-3 rounded-xl text-slate-400 hover:text-white transition">
-                <i class='bx bxs-file-pdf'></i> Laporan PDF
-            </a>
-        </nav>
-
-        <div class="p-4 mt-auto border-t border-slate-800">
-            <div class="flex items-center gap-3 mb-4 px-2">
-                <div class="w-8 h-8 rounded-full bg-emerald-500 flex items-center justify-center text-xs font-bold text-white uppercase">
-                    {{ session['admin_nama'][:1] if session.get('admin_nama') else 'A' }}
-                </div>
-                <div class="overflow-hidden">
-                    <p class="text-xs font-bold truncate">{{ session.get('admin_nama', 'Admin') }}</p>
-                    <p class="text-[10px] text-slate-500">Super Administrator</p>
-                </div>
-            </div>
-            <a href="#" onclick="konfirmasiLogout(event)" class="flex items-center gap-3 px-4 py-3 rounded-xl text-red-400 hover:bg-red-500/10 transition font-medium">
-                <i class='bx bx-log-out'></i> Logout
-            </a>
-        </div>
-    </aside>
+    {% include 'components/sidebar.html' %}
 
     <main class="flex-grow p-8">
         
@@ -114,7 +80,7 @@
                         <label class="block text-xs font-bold text-slate-500 mb-2 uppercase">Kelas</label>
                         <input type="text" name="kelas" required class="w-full px-4 py-3 rounded-xl border border-slate-200 focus:border-blue-500 outline-none transition placeholder-slate-300" placeholder="Contoh: XI RPL 1">
                     </div>
-                    <div class="md:col-span-2">
+                    <div>
                         <label class="block text-xs font-bold text-slate-500 mb-2 uppercase">Agama</label>
                         <select name="agama" class="w-full px-4 py-3 rounded-xl border border-slate-200 outline-none bg-white focus:border-blue-500 transition">
                             <option value="Islam">Islam</option>
@@ -123,6 +89,13 @@
                             <option value="Hindu">Hindu</option>
                             <option value="Buddha">Buddha</option>
                             <option value="Khonghucu">Khonghucu</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-bold text-slate-500 mb-2 uppercase">Jenis Kelamin</label>
+                        <select name="jenis_kelamin" class="w-full px-4 py-3 rounded-xl border border-slate-200 outline-none bg-white focus:border-blue-500 transition" required>
+                            <option value="L">Laki-laki</option>
+                            <option value="P">Perempuan</option>
                         </select>
                     </div>
 
@@ -175,11 +148,11 @@
                             <tr class="hover:bg-slate-50/80 transition">
                                 <td class="px-6 py-4">
                                     <p class="font-bold text-slate-700">{{ s.nama }}</p>
-                                    <p class="text-[10px] text-slate-400">{{ s.kelas }} | {{ s.agama }}</p>
+                                    <p class="text-[10px] text-slate-400">{{ s.kelas }} | {{ s.agama }} | {{ 'Laki-laki' if s.jenis_kelamin == 'L' else 'Perempuan' }}</p>
                                 </td>
                                 <td class="px-6 py-4 font-mono text-xs text-blue-600">{{ s.id_card }}</td>
                                 <td class="px-6 py-4 flex gap-3 items-center">
-                                    <button type="button" onclick="bukaModalEdit('{{ s.id }}', '{{ s.id_card }}', '{{ s.nisn }}', '{{ s.nama }}', '{{ s.kelas }}', '{{ s.agama }}')" class="text-blue-500 hover:text-blue-700 text-lg transition">
+                                    <button type="button" onclick="bukaModalEdit('{{ s.id }}', '{{ s.id_card }}', '{{ s.nisn }}', '{{ s.nama }}', '{{ s.kelas }}', '{{ s.agama }}', '{{ s.jenis_kelamin }}')" class="text-blue-500 hover:text-blue-700 text-lg transition">
                                         <i class='bx bx-edit'></i>
                                     </button>
                                     <button type="button" onclick="konfirmasiHapus('/hapus_siswa/{{ s.id }}')" class="text-red-400 hover:text-red-600 text-lg transition">
@@ -277,13 +250,19 @@
             <input type="text" name="kelas" id="editKelas" class="w-full border p-2 rounded mb-3 focus:outline-none focus:border-blue-500" required>
 
             <label class="block text-xs text-slate-500 mb-1">Agama</label>
-            <select name="agama" id="editAgama" class="w-full border p-2 rounded mb-4 focus:outline-none focus:border-blue-500" required>
+            <select name="agama" id="editAgama" class="w-full border p-2 rounded mb-3 focus:outline-none focus:border-blue-500" required>
                 <option value="Islam">Islam</option>
                 <option value="Kristen">Kristen</option>
                 <option value="Katolik">Katolik</option>
                 <option value="Hindu">Hindu</option>
                 <option value="Buddha">Buddha</option>
                 <option value="Khonghucu">Khonghucu</option>
+            </select>
+
+            <label class="block text-xs text-slate-500 mb-1">Jenis Kelamin</label>
+            <select name="jenis_kelamin" id="editJenisKelamin" class="w-full border p-2 rounded mb-4 focus:outline-none focus:border-blue-500" required>
+                <option value="L">Laki-laki</option>
+                <option value="P">Perempuan</option>
             </select>
             
             <button type="submit" class="w-full bg-blue-600 text-white py-2 rounded-lg font-medium hover:bg-blue-700 transition">Simpan Perubahan</button>
@@ -296,7 +275,7 @@
             form.classList.toggle('hidden');
         }
 
-        function bukaModalEdit(id, id_card, nisn, nama, kelas, agama) {
+        function bukaModalEdit(id, id_card, nisn, nama, kelas, agama, jenis_kelamin) {
             document.getElementById('modalEdit').classList.remove('hidden');
             document.getElementById('formEdit').action = '/edit_siswa/' + id; 
             document.getElementById('editId').value = id;
@@ -305,28 +284,11 @@
             document.getElementById('editNama').value = nama;
             document.getElementById('editKelas').value = kelas;
             document.getElementById('editAgama').value = agama;
+            document.getElementById('editJenisKelamin').value = jenis_kelamin;
         }
 
         function tutupModalEdit() {
             document.getElementById('modalEdit').classList.add('hidden');
-        }
-
-        function konfirmasiLogout(event) {
-            event.preventDefault(); 
-            Swal.fire({
-                title: 'Keluar dari Sistem?',
-                text: "Anda harus login kembali untuk mengakses dashboard.",
-                icon: 'question',
-                showCancelButton: true,
-                confirmButtonColor: '#ef4444',
-                cancelButtonColor: '#64748b',
-                confirmButtonText: 'Ya, Logout!',
-                cancelButtonText: 'Batal'
-            }).then((result) => {
-                if (result.isConfirmed) {
-                    window.location.href = '/logout';
-                }
-            });
         }
 
         function konfirmasiHapus(url) {
@@ -427,15 +389,17 @@
             resetPreview();
         });
 
-        {% with messages = get_flashed_messages() %}
+        {% with messages = get_flashed_messages(with_categories=true) %}
             {% if messages %}
+                {% for category, message in messages %}
                 Swal.fire({
-                    icon: 'success',
-                    title: 'Berhasil',
-                    text: '{{ messages[0] }}',
-                    timer: 2000,
-                    showConfirmButton: false
+                    icon: "{{ 'success' if category == 'success' else 'error' if category == 'danger' else 'warning' if category == 'warning' else 'info' }}",
+                    title: "{{ 'Berhasil' if category == 'success' else 'Gagal' if category == 'danger' else 'Peringatan' if category == 'warning' else 'Informasi' }}",
+                    text: "{{ message }}",
+                    timer: 3000,
+                    showConfirmButton: true
                 });
+                {% endfor %}
             {% endif %}
         {% endwith %}
     </script>
