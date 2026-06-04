@@ -26,8 +26,6 @@
 </head>
 <body class="bg-slate-950 min-h-screen flex text-slate-100 overflow-hidden">
 
-    {% include 'components/sidebar.html' %}
-
     <main class="flex-grow p-8 flex flex-col h-screen overflow-y-auto bg-gradient-to-b from-slate-900 to-slate-950">
         
         <header class="flex justify-between items-center mb-6 shrink-0">
@@ -220,24 +218,36 @@
                 headers: { 'X-Requested-With': 'XMLHttpRequest' },
                 body: formData
             })
-            .then(response => response.json())
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                }
+                return response.json();
+            })
             .then(data => {
                 rfidInput.value = '';
                 rfidInput.disabled = false;
                 rfidInput.focus();
 
-                if (data.status === 'success') {
+                // Validasi data response
+                if (!data || !data.status || !data.message) {
+                    statusIcon.innerHTML = "<i class='bx bx-error text-red-500'></i>";
+                    statusTitle.innerText = "Data Tidak Valid";
+                    statusDesc.innerText = "Server mengirim response yang tidak valid. Coba lagi.";
+                    statusTitle.className = "text-base font-bold text-red-500";
+                } else if (data.status === 'success') {
                     statusIcon.innerHTML = "<i class='bx bx-check-circle text-emerald-500'></i>";
                     statusTitle.innerText = "COCOK";
                     statusTitle.className = "text-base font-bold text-emerald-500";
+                    statusDesc.innerText = data.message;
+                    statusDesc.className = "text-[10px] text-slate-300 mt-1 px-2";
                 } else {
                     statusIcon.innerHTML = "<i class='bx bx-x-circle text-red-500'></i>";
                     statusTitle.innerText = "GAGAL";
                     statusTitle.className = "text-base font-bold text-red-500";
+                    statusDesc.innerText = data.message;
+                    statusDesc.className = "text-[10px] text-slate-300 mt-1 px-2";
                 }
-                
-                statusDesc.innerText = data.message;
-                statusDesc.className = "text-[10px] text-slate-300 mt-1 px-2";
 
                 // Kembalikan ke tampilan default setelah 3 detik
                 setTimeout(() => {
@@ -249,14 +259,35 @@
                 }, 3500);
             })
             .catch(error => {
-                console.error("Error:", error);
+                console.error("Error Detail:", error);
                 rfidInput.value = '';
                 rfidInput.disabled = false;
                 rfidInput.focus();
                 
                 statusIcon.innerHTML = "<i class='bx bx-error text-red-500'></i>";
                 statusTitle.innerText = "Error Jaringan";
-                statusDesc.innerText = "Gagal terhubung ke server.";
+                
+                // Berikan pesan error yang lebih detail berdasarkan tipe error
+                let errorMsg = "Gagal terhubung ke server.";
+                if (error instanceof TypeError) {
+                    errorMsg = "Koneksi Server Terputus / Server Offline";
+                } else if (error instanceof SyntaxError) {
+                    errorMsg = "Response Server Tidak Valid (JSON Parse Error)";
+                } else if (error.message) {
+                    errorMsg = "Error: " + error.message;
+                }
+                
+                statusDesc.innerText = errorMsg;
+                statusDesc.className = "text-[10px] text-slate-300 mt-1 px-2";
+
+                // Kembalikan ke tampilan default setelah 4 detik
+                setTimeout(() => {
+                    statusIcon.innerHTML = "<i class='bx bx-rfid animate-bounce text-blue-500'></i>";
+                    statusTitle.innerText = "Sistem Siap";
+                    statusTitle.className = "text-base font-bold text-slate-300";
+                    statusDesc.innerText = "Silakan tempelkan kartu pada scanner atau ketik ID.";
+                    statusDesc.className = "text-[10px] text-slate-500 mt-1 px-2";
+                }, 4000);
             });
         });
     </script>

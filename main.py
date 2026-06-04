@@ -43,8 +43,8 @@ def verify_face(base64_webcam, filename_master):
         nparr = np.frombuffer(base64.b64decode(encoded_data), np.uint8)
         img_webcam = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
         
-        # Penting: balik gambar webcam horizontal agar orientasi sama dengan foto master
-        img_webcam = cv2.flip(img_webcam, 1)
+        if img_webcam is None:
+            return False, "Gambar webcam tidak valid!"
         
         # 2. Load Master Image
         path_master = os.path.join(app.config['UPLOAD_FOLDER'], 'siswa', filename_master)
@@ -52,49 +52,62 @@ def verify_face(base64_webcam, filename_master):
             return False, "Master Foto Hilang"
         img_master = cv2.imread(path_master)
         
+        if img_master is None:
+            return False, "Foto master tidak valid!"
+        
         # 3. Ambil bagian wajah saja
-        def get_face_only(img):
+        def get_face_info(img):
             gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-            # Deteksi posisi wajah
-            faces = face_cascade.detectMultiScale(gray, scaleFactor=1.1, minNeighbors=5, minSize=(50, 50))
+            # Deteksi posisi wajah dengan parameter lebih toleran
+            faces = face_cascade.detectMultiScale(gray, scaleFactor=1.1, minNeighbors=4, minSize=(50, 50))
             
             if len(faces) == 0:
-                return None  # wajah tidak ditemukan
+                return None, None, None  # wajah tidak ditemukan
                 
             # Ambil wajah dengan ukuran terbesar (hindari deteksi palsu)
             faces = sorted(faces, key=lambda f: f[2] * f[3], reverse=True)
             (x, y, w, h) = faces[0]
-            face_roi = gray[y:y+h, x:x+w]  # crop area wajah
+            face_roi = gray[y:y+h, x:x+w]
             
             # Resize ke ukuran standar dan normalisasi cahaya
             resized = cv2.resize(face_roi, (150, 150))
-            return cv2.equalizeHist(resized)
+            normalized = cv2.equalizeHist(resized)
+            
+            return normalized, w, h
 
         # 4. Ambil wajah dari kedua gambar
-        face_webcam = get_face_only(img_webcam)
-        face_master = get_face_only(img_master)
+        face_webcam, w_webcam, h_webcam = get_face_info(img_webcam)
+        face_master, w_master, h_master = get_face_info(img_master)
         
         if face_webcam is None:
             return False, "Kamera tidak mendeteksi wajah (Coba geser posisi)!"
         if face_master is None:
             return False, "Foto master tidak valid (Wajah tidak terlihat jelas)!"
-            
-        # 5. Bandingkan menggunakan Normalized Template Matching (TM_CCOEFF_NORMED)
-        # Crop bagian tengah wajah master (110x110) sebagai template
-        template = face_master[20:130, 20:130]
-        res = cv2.matchTemplate(face_webcam, template, cv2.TM_CCOEFF_NORMED)
+        
+        # 5. Bandingkan menggunakan Template Matching dengan full face
+        res = cv2.matchTemplate(face_webcam, face_master, cv2.TM_CCOEFF_NORMED)
         _, max_val, _, _ = cv2.minMaxLoc(res)
         
         match_score = max(0.0, max_val) * 100
         
-        # Threshold kecocokan diatur ke 35% (ketat namun toleran variasi)
-        if match_score >= 35:
+        # 5a. Tambahan: Histogram comparison untuk validasi pencahayaan
+        hist_master = cv2.calcHist([face_master], [0], None, [256], [0, 256])
+        hist_webcam = cv2.calcHist([face_webcam], [0], None, [256], [0, 256])
+        hist_score = cv2.compareHist(hist_master, hist_webcam, cv2.HISTCMP_CORREL)
+        histogram_match = max(0, hist_score * 100)
+        
+        # Gabungkan kedua skor dan berikan batasan lebih fleksibel
+        combined_score = (match_score * 0.75) + (histogram_match * 0.25)
+        
+        if combined_score >= 55:
             return True, f"Verified ({int(match_score)}%)"
         else:
             return False, f"Wajah Tidak Identik ({int(match_score)}%)"
             
+    except ValueError as ve:
+        return False, f"Format Input Error: {str(ve)}"
     except Exception as e:
-        return False, f"AI Error: {str(e)}"
+        return False, f"AI Engine Error: {str(e).__class__.__name__} - {str(e)}"
 
 # Routing & controller
 
@@ -172,29 +185,44 @@ def dashboard():
     
     # --- 1. HANDLE TAMBAH SISWA (POST) ---
     if request.method == 'POST' and 'tambah_siswa' in request.form:
-        id_card = request.form['id_card']
-        nama = request.form['nama']
-        nisn = request.form['nisn']
-        kelas = request.form['kelas']
-        agama = request.form['agama']
-        jenis_kelamin = request.form['jenis_kelamin']
-        file_foto = request.files['foto_master']
+        id_card = request.form.get('id_card', '').strip()
+        nama = request.form.get('nama', '').strip()
+        nisn = request.form.get('nisn', '').strip()
+        kelas = request.form.get('kelas', '').strip()
+        agama = request.form.get('agama', '').strip()
+        jenis_kelamin = request.form.get('jenis_kelamin', '').strip()
+        file_foto = request.files.get('foto_master')
         
-        if file_foto:
-            filename = secure_filename(f"{nisn}_{file_foto.filename}")
-            file_foto.save(os.path.join(app.config['UPLOAD_FOLDER'], 'siswa', filename))
+        # Validasi input kosong
+        if not all([id_card, nama, nisn, kelas, agama, jenis_kelamin]):
+            flash("❌ Semua field wajib diisi! (khususnya RFID)", "danger")
+            cursor.close()
+            conn.close()
+            return redirect(url_for('dashboard'))
+        
+        if not file_foto:
+            flash("❌ Foto master AI wajib diunggah.", "danger")
+            cursor.close()
+            conn.close()
+            return redirect(url_for('dashboard'))
             
-            try:
-                cursor.execute("""
-                    INSERT INTO siswa (id_card, nama, nisn, kelas, agama, jenis_kelamin, foto_master)
-                    VALUES (%s, %s, %s, %s, %s, %s, %s)
-                """, (id_card, nama, nisn, kelas, agama, jenis_kelamin, filename))
-                conn.commit()
-                flash("Data siswa berhasil disimpan!", "success")
-            except mysql.connector.Error as err:
-                flash(f"Database Error: {err}", "danger")
-        else:
-            flash("Foto master AI wajib diunggah.", "danger")
+        filename = secure_filename(f"{nisn}_{file_foto.filename}")
+        file_foto.save(os.path.join(app.config['UPLOAD_FOLDER'], 'siswa', filename))
+        
+        try:
+            cursor.execute("""
+                INSERT INTO siswa (id_card, nama, nisn, kelas, agama, jenis_kelamin, foto_master)
+                VALUES (%s, %s, %s, %s, %s, %s, %s)
+            """, (id_card, nama, nisn, kelas, agama, jenis_kelamin, filename))
+            conn.commit()
+            flash(f"✅ Data siswa berhasil disimpan! (RFID: {id_card})", "success")
+        except mysql.connector.Error as db_err:
+            if db_err.errno == 1062:  # Duplicate entry
+                flash(f"❌ Gagal: UID RFID atau NISN sudah terdaftar!", "danger")
+            else:
+                flash(f"❌ Database Error: {str(db_err)}", "danger")
+        except Exception as e:
+            flash(f"❌ Error: {str(e)}", "danger")
             
         return redirect(url_for('dashboard'))
 
@@ -302,14 +330,22 @@ def edit_siswa(id):
     if 'admin_id' not in session: 
         return redirect(url_for('login'))
         
-    id_card = request.form.get('id_card')
-    nama = request.form.get('nama')
-    nisn = request.form.get('nisn')
-    kelas = request.form.get('kelas')
-    agama = request.form.get('agama')
-    jenis_kelamin = request.form.get('jenis_kelamin')
+    id_card = request.form.get('id_card', '').strip()
+    nama = request.form.get('nama', '').strip()
+    nisn = request.form.get('nisn', '').strip()
+    kelas = request.form.get('kelas', '').strip()
+    agama = request.form.get('agama', '').strip()
+    jenis_kelamin = request.form.get('jenis_kelamin', '').strip()
+    
+    conn = None
+    cursor = None
     
     try:
+        # Validasi input
+        if not all([id_card, nama, nisn, kelas, agama, jenis_kelamin]):
+            flash(f"Semua field wajib diisi! (RFID: {id_card}, Nama: {nama})", "danger")
+            return redirect(url_for('dashboard'))
+        
         conn = get_db_connection()
         cursor = conn.cursor()
         cursor.execute("""
@@ -318,11 +354,22 @@ def edit_siswa(id):
             WHERE id=%s
         """, (id_card, nama, nisn, kelas, agama, jenis_kelamin, id))
         conn.commit()
-        cursor.close()
-        conn.close()
-        flash("Data siswa berhasil diperbarui!", "success")
+        flash(f"✅ Data siswa berhasil diperbarui! (RFID: {id_card})", "success")
+    except mysql.connector.Error as db_err:
+        if db_err.errno == 1062:  # Duplicate entry error
+            flash(f"❌ Gagal: UID RFID atau NISN sudah dipakai siswa lain!", "danger")
+        else:
+            flash(f"❌ Database Error: {str(db_err)}", "danger")
     except Exception as e:
-        flash(f"Gagal memperbarui data: Pastikan UID RFID atau NISN belum dipakai siswa lain.", "danger")
+        flash(f"❌ Error: {type(e).__name__} - {str(e)}", "danger")
+    finally:
+        try:
+            if cursor:
+                cursor.close()
+            if conn:
+                conn.close()
+        except:
+            pass
         
     return redirect(url_for('dashboard'))
 
@@ -368,47 +415,78 @@ def absen():
     status_type = "standby"
     
     if request.method == 'POST':
-        id_card = request.form.get('id_card')
-        snapshot_base64 = request.form.get('snapshot')
-        sesi_aktif = session.get('sesi_ibadah')
-        target_agama = session.get('target_agama')
-        
-        conn = get_db_connection()
-        cursor = conn.cursor(dictionary=True)
-        cursor.execute("SELECT * FROM siswa WHERE id_card = %s", (id_card,))
-        siswa = cursor.fetchone()
-        
-        if not siswa:
-            status_msg = f"Gagal! Kartu RFID ({id_card}) Tidak Terdaftar!"
-            status_type = "danger"
-        elif siswa['agama'].lower() != target_agama.lower():
-            status_msg = f"Ditolak! Sesi ini khusus siswa beragama {target_agama}."
-            status_type = "danger"
-        else:
-            if snapshot_base64 and siswa['foto_master']:
-                is_valid_face, ai_message = verify_face(snapshot_base64, siswa['foto_master'])
-                if is_valid_face:
-                    cursor.execute("""
-                        INSERT INTO absensi (siswa_id, jenis_ibadah, keterangan, foto) 
-                        VALUES (%s, %s, %s, %s)
-                    """, (siswa['id'], sesi_aktif, "Hadir Tepat Waktu (Verified)", snapshot_base64))
-                    conn.commit()
-                    status_msg = f"Berhasil Absen! Halo {siswa['nama']}. {ai_message}"
-                    status_type = "success"
-                else:
-                    cursor.execute("""
-                        INSERT INTO absensi (siswa_id, jenis_ibadah, keterangan, foto) 
-                        VALUES (%s, %s, %s, %s)
-                    """, (siswa['id'], sesi_aktif, f"Autentikasi Gagal: {ai_message}", snapshot_base64))
-                    conn.commit()
-                    status_msg = f"ABSEN DITOLAK! {ai_message}"
-                    status_type = "danger"
-            else:
-                status_msg = "Gagal! Kamera terganggu atau foto master belum di-upload."
+        conn = None
+        cursor = None
+        try:
+            id_card = request.form.get('id_card', '').strip()
+            snapshot_base64 = request.form.get('snapshot')
+            sesi_aktif = session.get('sesi_ibadah')
+            target_agama = session.get('target_agama', '').strip().lower()
+            
+            if not id_card:
+                status_msg = "❌ ID Card kosong! Silakan tap kartu atau input ID."
                 status_type = "danger"
+            else:
+                conn = get_db_connection()
+                cursor = conn.cursor(dictionary=True)
+                cursor.execute("SELECT * FROM siswa WHERE id_card = %s", (id_card,))
+                siswa = cursor.fetchone()
                 
-        cursor.close()
-        conn.close()
+                if not siswa:
+                    status_msg = f"❌ Kartu RFID ({id_card}) TIDAK TERDAFTAR di sistem!"
+                    status_type = "danger"
+                elif siswa['agama'].strip().lower() != target_agama:
+                    status_msg = f"❌ DITOLAK! Sesi ini HANYA untuk siswa beragama {session.get('target_agama')}. Siswa ini beragama {siswa['agama']}."
+                    status_type = "danger"
+                elif not snapshot_base64 or not siswa['foto_master']:
+                    status_msg = "⚠️ Kamera terganggu atau foto master belum di-upload admin. Hubungi admin!"
+                    status_type = "danger"
+                else:
+                    is_valid_face, ai_message = verify_face(snapshot_base64, siswa['foto_master'])
+                    if is_valid_face:
+                        # Potong message agar tidak melebihi limit column (255 char)
+                        keterangan = "Hadir Tepat Waktu (Verified)"
+                        cursor.execute("""
+                            INSERT INTO absensi (siswa_id, jenis_ibadah, keterangan, foto) 
+                            VALUES (%s, %s, %s, %s)
+                        """, (siswa['id'], sesi_aktif, keterangan[:255], snapshot_base64))
+                        conn.commit()
+                        status_msg = f"✅ Berhasil Absen! Halo {siswa['nama']}. {ai_message}"
+                        status_type = "success"
+                    else:
+                        # Potong message gagal verifikasi
+                        keterangan_gagal = f"Autentikasi Gagal: {ai_message}"
+                        cursor.execute("""
+                            INSERT INTO absensi (siswa_id, jenis_ibadah, keterangan, foto) 
+                            VALUES (%s, %s, %s, %s)
+                        """, (siswa['id'], sesi_aktif, keterangan_gagal[:255], snapshot_base64))
+                        conn.commit()
+                        status_msg = f"❌ ABSEN DITOLAK! Wajah tidak cocok dengan foto master. {ai_message}"
+                        status_type = "danger"
+                
+        except mysql.connector.Error as db_err:
+            error_code = db_err.errno if hasattr(db_err, 'errno') else 'UNKNOWN'
+            error_msg = str(db_err)
+            status_msg = f"❌ Database Error ({error_code}): {error_msg}"
+            status_type = "danger"
+            print(f"[DB Error] {status_msg}")
+        except ValueError as val_err:
+            status_msg = f"❌ Input Error: {str(val_err)}"
+            status_type = "danger"
+            print(f"[ValueError] {status_msg}")
+        except Exception as e:
+            status_msg = f"⚠️ System Error: {type(e).__name__} - {str(e)}"
+            status_type = "danger"
+            print(f"[SystemError] {status_msg}")
+        finally:
+            # Pastikan conn dan cursor selalu ditutup
+            try:
+                if cursor:
+                    cursor.close()
+                if conn:
+                    conn.close()
+            except Exception as cleanup_err:
+                print(f"[Cleanup Error] {cleanup_err}")
         
         if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
             return jsonify({"status": status_type, "message": status_msg})
