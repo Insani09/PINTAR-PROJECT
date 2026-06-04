@@ -1,4 +1,3 @@
-# setup_admin.py
 import mysql.connector
 import hashlib
 
@@ -9,12 +8,12 @@ def init_db():
         password=""
     )
     cursor = db.cursor()
-    
-    # Mengganti nama database sesuai request baru
+
+    # Create/use database
     cursor.execute("CREATE DATABASE IF NOT EXISTS ta_pintar")
     cursor.execute("USE ta_pintar")
     
-    # Tabel Admin
+    # Tabel: admin
     cursor.execute("""
     CREATE TABLE IF NOT EXISTS admin (
         id INT PRIMARY KEY AUTO_INCREMENT,
@@ -24,7 +23,7 @@ def init_db():
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     )""")
     
-    # Tabel Siswa
+    # Tabel: siswa
     cursor.execute("""
     CREATE TABLE IF NOT EXISTS siswa (
         id INT PRIMARY KEY AUTO_INCREMENT,
@@ -37,7 +36,7 @@ def init_db():
         foto_master VARCHAR(255) DEFAULT NULL
     )""")
     
-    # Tabel Absensi
+    # Tabel: absensi
     cursor.execute("""
     CREATE TABLE IF NOT EXISTS absensi (
         id INT PRIMARY KEY AUTO_INCREMENT,
@@ -49,7 +48,7 @@ def init_db():
         FOREIGN KEY (siswa_id) REFERENCES siswa(id) ON DELETE CASCADE
     )""")
     
-    # Buat ulang akun admin fresh
+    # Buat akun admin default (jika ada, ganti)
     cursor.execute("DELETE FROM admin WHERE username = 'admin'")
     password_hash = hashlib.sha256("admin123".encode()).hexdigest()
     cursor.execute(

@@ -8,7 +8,7 @@ import cv2
 import numpy as np
 from werkzeug.utils import secure_filename
 from io import BytesIO
-from xhtml2pdf import pisa  # Memakai xhtml2pdf agar 100% aman di Windows/Laragon
+from xhtml2pdf import pisa  # xhtml2pdf used for PDF generation
 
 app = Flask(__name__)
 app.config['TEMPLATES_AUTO_RELOAD'] = True
@@ -28,15 +28,13 @@ def get_db_connection():
         database="ta_pintar"
     )
 
-# ==========================================
-# ENGINE AI: VERIFIKASI WAJAH (OPENCV HAAR CASCADE)
-# ==========================================
+# ENGINE AI: Verifikasi Wajah (OpenCV Haar Cascade)
 # Inisialisasi Pendeteksi Wajah Bawaan OpenCV
 face_cascade = cv2.CascadeClassifier(cv2.data.haarcascades + 'haarcascade_frontalface_default.xml')
 
 def verify_face(base64_webcam, filename_master):
     try:
-        # 1. Decode webcam image (dengan pengamanan format)
+        # 1. Decode webcam image (handle data URL format)
         if ',' in base64_webcam:
             encoded_data = base64_webcam.split(',')[1]
         else:
@@ -45,7 +43,7 @@ def verify_face(base64_webcam, filename_master):
         nparr = np.frombuffer(base64.b64decode(encoded_data), np.uint8)
         img_webcam = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
         
-        # Penting: Balik gambar webcam secara horizontal agar orientasinya sama dengan foto master (tidak mirrored)
+        # Penting: balik gambar webcam horizontal agar orientasi sama dengan foto master
         img_webcam = cv2.flip(img_webcam, 1)
         
         # 2. Load Master Image
@@ -54,23 +52,22 @@ def verify_face(base64_webcam, filename_master):
             return False, "Master Foto Hilang"
         img_master = cv2.imread(path_master)
         
-        # 3. Fungsi Khusus: Cari dan potong bagian wajahnya saja
+        # 3. Ambil bagian wajah saja
         def get_face_only(img):
             gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
             # Deteksi posisi wajah
             faces = face_cascade.detectMultiScale(gray, scaleFactor=1.1, minNeighbors=5, minSize=(50, 50))
             
             if len(faces) == 0:
-                return None # Wajah tidak ditemukan di gambar
+                return None  # wajah tidak ditemukan
                 
-            # Ambil wajah dengan ukuran TERBESAR (menghindari deteksi palsu/background noise)
+            # Ambil wajah dengan ukuran terbesar (hindari deteksi palsu)
             faces = sorted(faces, key=lambda f: f[2] * f[3], reverse=True)
             (x, y, w, h) = faces[0]
-            face_roi = gray[y:y+h, x:x+w] # Crop hanya area wajah
+            face_roi = gray[y:y+h, x:x+w]  # crop area wajah
             
-            # Resize ke ukuran standar untuk dibandingkan
+            # Resize ke ukuran standar dan normalisasi cahaya
             resized = cv2.resize(face_roi, (150, 150))
-            # Histogram Equalization untuk normalisasi cahaya wajah
             return cv2.equalizeHist(resized)
 
         # 4. Ambil wajah dari kedua gambar
@@ -90,7 +87,7 @@ def verify_face(base64_webcam, filename_master):
         
         match_score = max(0.0, max_val) * 100
         
-        # Threshold kecocokan diatur ke 35% (cukup ketat untuk wajah, namun toleran cahaya/posisi)
+        # Threshold kecocokan diatur ke 35% (ketat namun toleran variasi)
         if match_score >= 35:
             return True, f"Verified ({int(match_score)}%)"
         else:
@@ -99,9 +96,7 @@ def verify_face(base64_webcam, filename_master):
     except Exception as e:
         return False, f"AI Error: {str(e)}"
 
-# ==========================================
-# ROUTING & CONTROLLER APPLICATION
-# ==========================================
+# Routing & controller
 
 @app.route('/', methods=['GET', 'POST'])
 def index():
@@ -297,7 +292,8 @@ def aktivitas_terbaru():
         ORDER BY absensi.waktu_hadir DESC LIMIT %s OFFSET %s
     """, (limit, offset))
     logs = cursor.fetchall()
-    cursor.close(); conn.close()
+    cursor.close()
+    conn.close()
     
     return render_template('aktivitas.html', logs=logs, page=page, total_pages=total_pages)
 
